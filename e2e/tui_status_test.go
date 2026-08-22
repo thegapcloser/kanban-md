@@ -19,7 +19,7 @@ func TestE2E_TUIStatusLinePrioritizesHelpInNormalAndMouseModes(t *testing.T) {
 		},
 		{
 			name: "mouse",
-			args: []string{"--mouse"},
+			args: []string{mouseFlag},
 			want: "4 cards | ? help | mouse | create",
 		},
 	}

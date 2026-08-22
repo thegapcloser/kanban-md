@@ -58,6 +58,13 @@ type backTarget struct {
 	rect rect
 }
 
+// relationTarget is the click target of one navigable relation row in the
+// detail view.
+type relationTarget struct {
+	taskID int
+	rect   rect
+}
+
 type layoutSnapshot struct {
 	generation uint64
 	width      int
@@ -69,6 +76,9 @@ type layoutSnapshot struct {
 	// the active column.
 	tabs []columnTarget
 	back *backTarget
+	// relations are the detail-view relation rows that can be opened with a
+	// single click, in render order.
+	relations []relationTarget
 }
 
 type pointerTargetKind int
@@ -77,6 +87,7 @@ const (
 	pointerTargetNone pointerTargetKind = iota
 	pointerTargetCard
 	pointerTargetBack
+	pointerTargetRelation
 )
 
 type pointerState struct {
@@ -91,6 +102,12 @@ type pointerState struct {
 	dragStarted       bool
 	lastClickID       int
 	lastClickTime     time.Time
+	// Hover position of the last buttonless motion event. Cleared only by
+	// invalidatePointerState, never by clearGesture, so a hover survives a
+	// stream of motion events but dies on any key press or resize.
+	hoverActive bool
+	hoverX      int
+	hoverY      int
 }
 
 func (b *Board) invalidatePointerState() {
@@ -114,6 +131,14 @@ func (b *Board) clearGesture() {
 func (b *Board) clearPendingClick() {
 	b.pointer.lastClickID = 0
 	b.pointer.lastClickTime = time.Time{}
+}
+
+// clearHover forgets the remembered pointer position, so nothing stays
+// underlined once the hover is no longer valid.
+func (b *Board) clearHover() {
+	b.pointer.hoverActive = false
+	b.pointer.hoverX = 0
+	b.pointer.hoverY = 0
 }
 
 func (b *Board) captureBoardLayout(colWidth, targetHeight int, targets [][]cardTarget) {
@@ -203,6 +228,10 @@ func (b *Board) handleMouse(msg tea.MouseEvent) (tea.Model, tea.Cmd) {
 		b.clearGesture()
 		if msg.Shift || msg.Alt || msg.Ctrl {
 			b.clearPendingClick()
+			// All-motion reporting routes plain pointer moves through here too,
+			// and a hover is a gesture like any other: dropping it keeps the
+			// underline from freezing on the row the pointer has left.
+			b.clearHover()
 		}
 		return b, nil
 	}
@@ -256,6 +285,12 @@ func (b *Board) handleBoardMouse(msg tea.MouseEvent) (tea.Model, tea.Cmd) {
 			b.clearPendingClick()
 		}
 	case tea.MouseActionMotion:
+		// Symmetric to the detail branch: a buttonless move must never touch
+		// the gesture state. With an armed press it would otherwise drag the
+		// destination marker along with a pointer that holds no button.
+		if isHoverMotion(msg) {
+			return b, nil
+		}
 		if b.pointer.pressed && b.pointer.kind == pointerTargetCard {
 			b.updateDragTarget(msg.X, msg.Y)
 		}
@@ -372,6 +407,13 @@ func (b *Board) handleDetailMouse(msg tea.MouseEvent) (tea.Model, tea.Cmd) {
 	case tea.MouseActionPress:
 		b.handleDetailPress(msg)
 	case tea.MouseActionMotion:
+		// Hover first: a buttonless move must never touch the gesture state.
+		if isHoverMotion(msg) {
+			b.pointer.hoverActive = true
+			b.pointer.hoverX = msg.X
+			b.pointer.hoverY = msg.Y
+			return b, nil
+		}
 		if b.pointer.pressed && !b.pointer.rect.contains(msg.X, msg.Y) {
 			b.clearGesture()
 		}
@@ -402,14 +444,33 @@ func (b *Board) handleDetailPress(msg tea.MouseEvent) {
 		return
 	}
 	if b.layout.back != nil && b.layout.back.rect.contains(msg.X, msg.Y) {
-		b.pointer.pressed = true
-		b.pointer.kind = pointerTargetBack
-		b.pointer.rect = b.layout.back.rect
-		b.pointer.generation = b.layout.generation
+		b.beginDetailGesture(pointerTargetBack, 0, b.layout.back.rect)
+		return
+	}
+	if target := b.relationAt(msg.X, msg.Y); target != nil {
+		b.beginDetailGesture(pointerTargetRelation, target.taskID, target.rect)
 		return
 	}
 	b.clearGesture()
 	b.clearPendingClick()
+}
+
+// beginDetailGesture arms a press on a detail-view target.
+func (b *Board) beginDetailGesture(kind pointerTargetKind, taskID int, target rect) {
+	b.pointer.pressed = true
+	b.pointer.kind = kind
+	b.pointer.taskID = taskID
+	b.pointer.rect = target
+	b.pointer.generation = b.layout.generation
+}
+
+// detailGestureLandsOn reports whether the armed press is still backed by the
+// rendered layout and the release happened inside its target.
+func (b *Board) detailGestureLandsOn(x, y int) bool {
+	return b.pointer.pressed &&
+		b.pointer.generation == b.layout.generation &&
+		b.layout.generation == b.layoutGeneration &&
+		b.pointer.rect.contains(x, y)
 }
 
 func (b *Board) handleDetailRelease(msg tea.MouseEvent) {
@@ -417,18 +478,41 @@ func (b *Board) handleDetailRelease(msg tea.MouseEvent) {
 		b.clearGesture()
 		return
 	}
-	if b.pointer.pressed &&
-		b.pointer.kind == pointerTargetBack &&
-		b.pointer.generation == b.layout.generation &&
-		b.layout.generation == b.layoutGeneration &&
-		b.pointer.rect.contains(msg.X, msg.Y) {
-		b.view = viewBoard
-		b.detailTask = nil
-		b.detailScrollOff = 0
-		b.invalidatePointerState()
+	if !b.detailGestureLandsOn(msg.X, msg.Y) {
+		b.clearGesture()
 		return
 	}
-	b.clearGesture()
+	switch b.pointer.kind {
+	case pointerTargetBack:
+		b.backOrCloseDetail()
+	case pointerTargetRelation:
+		taskID := b.pointer.taskID
+		b.clearGesture()
+		b.openRelation(taskID)
+	default:
+		b.clearGesture()
+	}
+}
+
+// relationAt returns the detail-view relation target at the given position, if
+// the rendered layout is still current.
+func (b *Board) relationAt(x, y int) *relationTarget {
+	if b.layout.generation != b.layoutGeneration || b.layout.view != viewDetail {
+		return nil
+	}
+	for i := range b.layout.relations {
+		if b.layout.relations[i].rect.contains(x, y) {
+			return &b.layout.relations[i]
+		}
+	}
+	return nil
+}
+
+// isHoverMotion reports whether an event is a plain pointer move with no button
+// held. Bubble Tea reports those as a motion action without a button, and only
+// all-motion reporting (1003) delivers them at all.
+func isHoverMotion(msg tea.MouseEvent) bool {
+	return msg.Action == tea.MouseActionMotion && msg.Button == tea.MouseButtonNone
 }
 
 func isVerticalWheel(button tea.MouseButton) bool {

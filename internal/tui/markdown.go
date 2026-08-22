@@ -9,6 +9,16 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+// markdownMemo caches one rendered task body. The key is the complete input of
+// the pure render function, so a hit can never be stale.
+type markdownMemo struct {
+	body     string
+	width    int
+	dark     bool
+	rendered string
+	valid    bool
+}
+
 // intraWordHyphen matches a hyphen between two word characters (inside compound
 // words like "chunk-index-eval"), but not markdown syntax like "- list item".
 var intraWordHyphen = regexp.MustCompile(`(\w)-(\w)`) //nolint:gochecknoglobals // compiled regex
@@ -17,14 +27,11 @@ var intraWordHyphen = regexp.MustCompile(`(\w)-(\w)`) //nolint:gochecknoglobals 
 // treated as a line-break opportunity by word-wrap algorithms.
 const nonBreakingHyphen = "\u2011"
 
-// renderMarkdown renders body text as terminal-friendly markdown using glamour.
-// Single newlines are preserved as hard line breaks via WithPreservedNewLines.
-// Intra-word hyphens are temporarily replaced with non-breaking hyphens to
-// prevent glamour's word wrapper from creating short orphan line fragments.
-func renderMarkdown(body string, width int) string {
-	return renderMarkdownForBackground(body, width, lipgloss.HasDarkBackground())
-}
-
+// renderMarkdownForBackground renders body text as terminal-friendly markdown
+// using glamour. Single newlines are preserved as hard line breaks via
+// WithPreservedNewLines. Intra-word hyphens are temporarily replaced with
+// non-breaking hyphens to prevent glamour's word wrapper from creating short
+// orphan line fragments.
 func renderMarkdownForBackground(body string, width int, darkBackground bool) string {
 	// Pre-process: protect intra-word hyphens from line breaking.
 	body = intraWordHyphen.ReplaceAllString(body, "${1}"+nonBreakingHyphen+"${2}")
@@ -69,4 +76,18 @@ func unescapeBody(s string) string {
 		`\\`, `\`,
 	)
 	return r.Replace(s)
+}
+
+// renderTaskBody renders a task body through a one-entry memo. All-motion mouse
+// reporting makes bubbletea re-render on every pointer move, and each render
+// otherwise builds a fresh glamour renderer. The memo key is the complete input
+// of the pure render function, so a hit can never be stale.
+func (b *Board) renderTaskBody(body string, width int) string {
+	dark := lipgloss.HasDarkBackground()
+	if b.mdCache.valid && b.mdCache.body == body && b.mdCache.width == width && b.mdCache.dark == dark {
+		return b.mdCache.rendered
+	}
+	rendered := renderMarkdownForBackground(body, width, dark)
+	b.mdCache = markdownMemo{body: body, width: width, dark: dark, rendered: rendered, valid: true}
+	return rendered
 }

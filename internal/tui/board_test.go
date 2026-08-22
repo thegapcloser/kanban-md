@@ -19,6 +19,7 @@ import (
 
 const (
 	statusTodo       = "todo"
+	statusDone       = "done"
 	priorityCritical = "critical"
 	viewLoading      = "Loading..."
 )
@@ -58,7 +59,7 @@ func setupTestBoard(t *testing.T) (*tui.Board, *config.Config) {
 		{1, "Task A", "backlog", "high"},
 		{2, "Task B", "backlog", "medium"},
 		{3, "Task C", "in-progress", "high"},
-		{4, "Task D", "done", "low"},
+		{4, "Task D", statusDone, "low"},
 	}
 
 	for _, tt := range tasks {
@@ -867,7 +868,7 @@ func TestBoard_ScrollHeaderVisible(t *testing.T) {
 	}
 
 	// Header row should be the first line and contain all column names.
-	if len(lines) > 0 && !containsStr(lines[0], "done") {
+	if len(lines) > 0 && !containsStr(lines[0], statusDone) {
 		t.Errorf("expected 'done' header on first line, got %q", lines[0])
 	}
 }
@@ -1252,7 +1253,7 @@ func setupParentChildrenBoard(t *testing.T) *tui.Board {
 	archivedParentID := 4
 	tasks := []*task.Task{
 		{ID: 1, Title: "Epic Alpha", Status: "backlog", Priority: "critical", Updated: testRefTime},
-		{ID: 3, Title: "Done child", Status: "done", Priority: "medium", Parent: &parentID, Updated: testRefTime},
+		{ID: 3, Title: "Done child", Status: statusDone, Priority: "medium", Parent: &parentID, Updated: testRefTime},
 		{ID: 2, Title: "Backlog child", Status: "backlog", Priority: "low", Parent: &parentID, Updated: testRefTime},
 		{ID: 4, Title: "Archived child", Status: "archived", Priority: "medium", Parent: &parentID, Updated: testRefTime},
 		{ID: 5, Title: "Grandchild", Status: "todo", Priority: "medium", Parent: &childID, Updated: testRefTime},
@@ -2395,7 +2396,7 @@ func TestBoard_ErrorDoesNotHideColumnHeaders(t *testing.T) {
 	}
 
 	// Column headers must still be visible.
-	for _, status := range []string{"backlog", "todo", "in-progress", "review", "done"} {
+	for _, status := range []string{"backlog", "todo", "in-progress", "review", statusDone} {
 		if !containsStr(v, status) {
 			t.Errorf("column header %q is not visible when error is displayed", status)
 		}
@@ -2414,7 +2415,7 @@ func TestBoard_ColumnHeadersAlwaysVisible(t *testing.T) {
 	// Test various heights with a board that has enough tasks to scroll.
 	b, _ := setupTestBoard(t)
 
-	statuses := []string{"backlog", "todo", "in-progress", "review", "done"}
+	statuses := []string{"backlog", "todo", "in-progress", "review", statusDone}
 	// Include small heights (5-7) where card+indicators can exceed budget.
 	for _, height := range []int{5, 6, 7, 8, 10, 15, 20, 30, 40} {
 		b.Update(tea.WindowSizeMsg{Width: 100, Height: height})
@@ -2464,7 +2465,7 @@ func TestBoard_ColumnHeadersVisibleWithManyTasks(t *testing.T) {
 
 	// Create 35 tasks across columns with long titles that wrap to 3 lines.
 	const taskCount = 35
-	statuses := [5]string{"backlog", statusTodo, "in-progress", "review", "done"}
+	statuses := [5]string{"backlog", statusTodo, "in-progress", "review", statusDone}
 	for i := 1; i <= taskCount; i++ {
 		status := statuses[i%len(statuses)]
 		tk := &task.Task{

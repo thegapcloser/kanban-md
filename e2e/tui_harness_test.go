@@ -29,6 +29,8 @@ const (
 	tuiTaskTimeout    = 2 * time.Second
 	tuiBoardStatus    = "? help"
 	tuiMouseStatus    = tuiBoardStatus + " | mouse"
+	// mouseFlag opts a TUI session into mouse reporting.
+	mouseFlag = "--mouse"
 )
 
 var (

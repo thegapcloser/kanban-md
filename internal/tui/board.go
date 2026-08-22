@@ -111,9 +111,14 @@ type Board struct {
 	levelFilter   int         // hierarchy depth to show while levelFilterOn
 	taskDepths    map[int]int // hierarchy depth per task ID, rebuilt on every load
 
-	// Detail view.
+	// Detail view. The zero value means "no relation cursor", so every path
+	// that opens the detail view starts with the cursor inactive.
 	detailTask      *task.Task
 	detailScrollOff int
+	detailCursorOn  bool
+	detailCursor    int
+	detailStack     []detailFrame
+	mdCache         markdownMemo
 
 	// Move view.
 	moveStatuses []string
@@ -226,7 +231,11 @@ func (b *Board) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		b.invalidatePointerState()
 		return b.handleKey(msg)
 	case tea.MouseMsg:
-		b.err = nil
+		// All-motion reporting delivers an event per pointer move. Those must
+		// not count as input, or an error toast would vanish on mouse wiggle.
+		if !isHoverMotion(tea.MouseEvent(msg)) {
+			b.err = nil
+		}
 		return b.handleMouse(tea.MouseEvent(msg))
 	case tea.WindowSizeMsg:
 		b.invalidatePointerState()
@@ -536,10 +545,15 @@ func (b *Board) handleNavigation(k string) {
 	}
 }
 
+// handleEnter opens the detail view of the selected board card. Entering from
+// the board starts a fresh relation history.
 func (b *Board) handleEnter() {
 	if t := b.selectedTask(); t != nil {
 		b.detailTask = t
 		b.detailScrollOff = 0
+		b.detailCursorOn = false
+		b.detailCursor = 0
+		b.detailStack = nil
 		b.view = viewDetail
 		b.invalidatePointerState()
 	}
@@ -904,10 +918,10 @@ func (b *Board) selectTaskByID(id int) {
 
 func (b *Board) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "q", keyEsc, "backspace":
-		b.view = viewBoard
-		b.detailTask = nil
-		b.detailScrollOff = 0
+	case "q":
+		b.closeDetail()
+	case keyEsc, "backspace":
+		b.backOrCloseDetail()
 	case "j", keyDown:
 		b.detailScrollOff++
 	case "k", keyUp:
@@ -919,6 +933,12 @@ func (b *Board) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "G":
 		// Set to large value; viewDetail will clamp it.
 		b.detailScrollOff = maxScrollOff
+	case keyTab:
+		b.moveDetailCursor(1)
+	case keyShiftTab:
+		b.moveDetailCursor(-1)
+	case keyEnter:
+		b.openCursorRelation()
 	}
 	return b, nil
 }
@@ -1062,10 +1082,9 @@ func (b *Board) refreshDetailTask() {
 			return
 		}
 	}
-	// Task no longer visible (deleted or archived) — close detail view.
-	b.view = viewBoard
-	b.detailTask = nil
-	b.detailScrollOff = 0
+	// Task no longer visible (deleted or archived) — fall back to the task the
+	// user came from instead of throwing them out of the detail view.
+	b.backOrCloseDetail()
 }
 
 func (b *Board) currentColumn() *column {
@@ -1483,6 +1502,11 @@ var (
 	}
 
 	dimStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+
+	// relationHoverStyle marks the relation row under the mouse pointer.
+	// Underline is the only decoration left: foreground and background of a
+	// relation row are already taken by the dim and status colors.
+	relationHoverStyle = lipgloss.NewStyle().Underline(true)
 
 	// Narrow-mode tab strip styles (no padding — tab hit rects are computed
 	// from rendered label widths).
@@ -2499,6 +2523,11 @@ func (b *Board) viewHelp() string {
 		{"↓/j", "Move cursor down"},
 		{"↑/k", "Move cursor up"},
 		{"enter", "Show task detail"},
+		{keyTab, "Detail view: next relation (shift+tab: previous)"},
+		{keyEnter, "Detail view: open the relation under the cursor"},
+		{keyEsc, "Detail view: back one task, or close if history is empty"},
+		{"backspace", "Detail view: back one task, same as esc"},
+		{"q", "Detail view: close and forget the relation history"},
 		{"c", "Create new task in column"},
 		{"e", "Edit selected task (same flow as create)"},
 		{"E", "Open selected task in $VISUAL, $EDITOR, or vi"},
@@ -2522,6 +2551,8 @@ func (b *Board) viewHelp() string {
 			struct{ key, desc string }{"click", "Select task; double-click opens detail"},
 			struct{ key, desc string }{"drag", "Release a card over another column to move it"},
 			struct{ key, desc string }{"wheel", "Move selection or scroll task detail"},
+			struct{ key, desc string }{"hover", "Detail view: underline the relation under the pointer"},
+			struct{ key, desc string }{"click", "Detail view: open a relation in one click"},
 		)
 	}
 

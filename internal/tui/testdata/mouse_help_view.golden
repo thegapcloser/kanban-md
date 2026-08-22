@@ -8,6 +8,11 @@
 │  ↓/j           Move cursor down                                             │
 │  ↑/k           Move cursor up                                               │
 │  enter         Show task detail                                             │
+│  tab           Detail view: next relation (shift+tab: previous)             │
+│  enter         Detail view: open the relation under the cursor              │
+│  esc           Detail view: back one task, or close if history is empty     │
+│  backspace     Detail view: back one task, same as esc                      │
+│  q             Detail view: close and forget the relation history           │
 │  c             Create new task in column                                    │
 │  e             Edit selected task (same flow as create)                     │
 │  E             Open selected task in $VISUAL, $EDITOR, or vi                │
@@ -28,6 +33,8 @@
 │  click         Select task; double-click opens detail                       │
 │  drag          Release a card over another column to move it                │
 │  wheel         Move selection or scroll task detail                         │
+│  hover         Detail view: underline the relation under the pointer        │
+│  click         Detail view: open a relation in one click                    │
 │                                                                             │
 │  Press any key to close                                                     │
 │                                                                             │
