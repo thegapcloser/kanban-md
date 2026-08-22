@@ -626,7 +626,8 @@ common milestone → epic → story layout that makes level 0 the milestones, le
 
 Press `L` to cycle the filter: all levels → level 0 only → level 1 only → … →
 back to all levels. The cycle stops at the deepest level actually present on the
-board, and the active level is shown in the status line as `level:N`.
+board. The status line lists the shortcut next to `sort` and doubles as the
+indicator: `level[all]` while unfiltered, `level[1]` while showing level 1.
 
 Each level has its own card border color, so the tree stays readable when no
 filter is active. The selected card is drawn with a thick border instead of a

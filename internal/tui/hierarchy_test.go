@@ -93,16 +93,23 @@ func TestLevelFilterCyclesThroughDepths(t *testing.T) {
 	}
 }
 
-func TestLevelFilterShownInStatusBar(t *testing.T) {
+func TestLevelFilterIsAListedStatusBarAction(t *testing.T) {
 	b := setupHierarchyBoard(t)
 
-	if strings.Contains(b.View(), "level:") {
-		t.Error("status bar shows a level marker while no level filter is active")
+	// The action is always listed so the shortcut is discoverable, and it
+	// doubles as the indicator of the active level.
+	if got := b.renderStatusBar(); !strings.Contains(got, "level[all]") {
+		t.Errorf("status bar %q does not list level[all] while unfiltered", got)
 	}
 
 	b = press(t, b, "L")
-	if !strings.Contains(b.View(), "level:0") {
-		t.Error("status bar does not show level:0 after filtering to depth 0")
+	if got := b.renderStatusBar(); !strings.Contains(got, "level[0]") {
+		t.Errorf("status bar %q does not show level[0] after filtering to depth 0", got)
+	}
+
+	b = press(t, b, "L")
+	if got := b.renderStatusBar(); !strings.Contains(got, "level[1]") {
+		t.Errorf("status bar %q does not show level[1] after filtering to depth 1", got)
 	}
 }
 

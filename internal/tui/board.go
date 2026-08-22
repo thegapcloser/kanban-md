@@ -398,6 +398,15 @@ func (b *Board) cycleLevelFilter() {
 	b.reloadKeepingSelection()
 }
 
+// levelFilterLabel renders the active hierarchy level for the status bar:
+// the depth while the filter is on, "all" while it is off.
+func (b *Board) levelFilterLabel() string {
+	if !b.levelFilterOn {
+		return "all"
+	}
+	return strconv.Itoa(b.levelFilter)
+}
+
 // cycleSortField advances the sort field to the next entry in sortFields
 // (wrapping around) and reloads, keeping the cursor on the same task.
 func (b *Board) cycleSortField() {
@@ -2158,9 +2167,6 @@ func (b *Board) renderStatusBar() string {
 	if b.filterQuery != "" {
 		parts = append(parts, statusBarPart{text: fmt.Sprintf(" | filter:%q", b.filterQuery)})
 	}
-	if b.levelFilterOn {
-		parts = append(parts, statusBarPart{text: fmt.Sprintf(" | level:%d", b.levelFilter)})
-	}
 	parts = append(parts, statusBarPart{text: " | "})
 	actions := [][2]string{
 		{"c", "create"},
@@ -2169,6 +2175,7 @@ func (b *Board) renderStatusBar() string {
 		{"+/-", "priority"},
 		{"d", "delete"},
 		{"s", fmt.Sprintf("sort[%s%s]", b.sortField, arrow)},
+		{"L", fmt.Sprintf("level[%s]", b.levelFilterLabel())},
 		{"/", "search"},
 		{"q", "quit"},
 	}
