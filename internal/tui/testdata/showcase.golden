@@ -1,9 +1,9 @@
  backlog (8)                 todo (3)                    in-progress (3)             review (2)                  done (3)                   
-╭──────────────────────────╮╭──────────────────────────╮╭──────────────────────────╮╭──────────────────────────╮╭──────────────────────────╮
-│ #16 Email notification   ││ #6 Write integration     ││ #9 Fix auth token        ││ #10 Implement user auth  ││ #13 Create project       │
-│ service                  ││ tests                    ││ refresh                  ││ critical backend 1d      ││ scaffold                 │
-│ high backend             ││ high testing 3d          ││ critical security 5h     ││ @sage-river              ││ high setup               │
-╰──────────────────────────╯╰──────────────────────────╯│ @coral-dusk              │╰──────────────────────────╯╰──────────────────────────╯
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━┓╭──────────────────────────╮╭──────────────────────────╮╭──────────────────────────╮╭──────────────────────────╮
+┃ #16 Email notification   ┃│ #6 Write integration     ││ #9 Fix auth token        ││ #10 Implement user auth  ││ #13 Create project       │
+┃ service                  ┃│ tests                    ││ refresh                  ││ critical backend 1d      ││ scaffold                 │
+┃ high backend             ┃│ high testing 3d          ││ critical security 5h     ││ @sage-river              ││ high setup               │
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━┛╰──────────────────────────╯│ @coral-dusk              │╰──────────────────────────╯╰──────────────────────────╯
 ╭──────────────────────────╮╭──────────────────────────╮╰──────────────────────────╯╭──────────────────────────╮╭──────────────────────────╮
 │ #18 Audit logging        ││ #5 Set up monitoring     │╭──────────────────────────╮│ #11 Design REST API      ││ #12 Set up CI pipeline   │
 │ medium security          ││ medium devops 3d         ││ #7 Build dashboard UI    ││ schema                   ││ high devops              │

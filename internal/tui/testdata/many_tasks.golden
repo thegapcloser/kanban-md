@@ -1,9 +1,9 @@
  backlog (3)         todo (0)            in-progress (0)     review (0)          done (15)          
-╭──────────────────╮  (empty)             (empty)             (empty)           ╭──────────────────╮
-│ #18 Backlog task │                                                            │ #12 Done task 12 │
-│ 18               │                                                            │ critical         │
-│ medium           │                                                            ╰──────────────────╯
-╰──────────────────╯                                                            ╭──────────────────╮
+┏━━━━━━━━━━━━━━━━━━┓  (empty)             (empty)             (empty)           ╭──────────────────╮
+┃ #18 Backlog task ┃                                                            │ #12 Done task 12 │
+┃ 18               ┃                                                            │ critical         │
+┃ medium           ┃                                                            ╰──────────────────╯
+┗━━━━━━━━━━━━━━━━━━┛                                                            ╭──────────────────╮
 ╭──────────────────╮                                                            │ #8 Done task 8   │
 │ #17 Backlog task │                                                            │ critical         │
 │ 17               │                                                            ╰──────────────────╯

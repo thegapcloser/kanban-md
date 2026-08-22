@@ -107,6 +107,12 @@ type Board struct {
 	searchInput textinput.Model // input shown while typing the query
 	searchReady bool
 
+	// Hierarchy level filter. The zero value shows every level, so a Board
+	// built as a struct literal is unfiltered without further setup.
+	levelFilterOn bool
+	levelFilter   int         // hierarchy depth to show while levelFilterOn
+	taskDepths    map[int]int // hierarchy depth per task ID, rebuilt on every load
+
 	// Detail view.
 	detailTask      *task.Task
 	detailScrollOff int
@@ -366,10 +372,30 @@ func (b *Board) handleBoardActionKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		b.reloadKeepingSelection()
 	case "/":
 		b.handleSearchStart()
+	case "L":
+		b.cycleLevelFilter()
 	case "ctrl+d":
 		b.view = viewDebug
 	}
 	return b, nil
+}
+
+// cycleLevelFilter advances the hierarchy level filter: all levels, then each
+// depth present on the board in turn, then back to all levels. Depths come from
+// the parent chain, so level 0 is the top of the tree (typically milestones),
+// level 1 its children (epics), and so on.
+func (b *Board) cycleLevelFilter() {
+	switch {
+	case !b.levelFilterOn:
+		b.levelFilterOn = true
+		b.levelFilter = 0
+	case b.levelFilter >= board.MaxDepth(b.taskDepths):
+		b.levelFilterOn = false
+		b.levelFilter = 0
+	default:
+		b.levelFilter++
+	}
+	b.reloadKeepingSelection()
 }
 
 // cycleSortField advances the sort field to the next entry in sortFields
@@ -951,13 +977,11 @@ func (b *Board) loadTasks() {
 	}
 	b.unfilteredTasks = activeTasks
 
-	var visibleTasks []*task.Task
-	for _, t := range activeTasks {
-		if !matchesFilter(t, b.filterQuery) {
-			continue
-		}
-		visibleTasks = append(visibleTasks, t)
-	}
+	// Depths come from all tasks, archived ones included: an archived parent
+	// still determines how deep its children sit in the tree.
+	b.taskDepths = board.Depths(tasks)
+
+	visibleTasks := b.applyBoardFilters(activeTasks)
 	b.tasks = visibleTasks
 
 	// Sort tasks by the active sort key.
@@ -1000,6 +1024,22 @@ func (b *Board) loadTasks() {
 	}
 
 	b.clampRow()
+}
+
+// applyBoardFilters narrows active tasks to those passing the search query and
+// the hierarchy level filter.
+func (b *Board) applyBoardFilters(activeTasks []*task.Task) []*task.Task {
+	var visible []*task.Task
+	for _, t := range activeTasks {
+		if !matchesFilter(t, b.filterQuery) {
+			continue
+		}
+		if b.levelFilterOn && b.taskDepths[t.ID] != b.levelFilter {
+			continue
+		}
+		visible = append(visible, t)
+	}
+	return visible
 }
 
 // refreshDetailTask updates the detail view task pointer after a reload.
@@ -1394,17 +1434,21 @@ var (
 			Padding(0, 1).
 			MarginBottom(0)
 
-	activeCardStyle = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("62")).
-			Padding(0, 1).
-			MarginBottom(0)
-
 	blockedCardStyle = lipgloss.NewStyle().
 				Border(lipgloss.RoundedBorder()).
 				BorderForeground(lipgloss.Color("196")).
 				Padding(0, 1).
 				MarginBottom(0)
+
+	// levelBorderColors maps hierarchy depth to a card border color, indexed by
+	// depth. Deeper levels reuse the last entry. The colors stay clear of the
+	// red used for blocked cards.
+	levelBorderColors = []lipgloss.Color{
+		lipgloss.Color("212"), // depth 0 — top of the tree (milestones)
+		lipgloss.Color("117"), // depth 1 — epics
+		lipgloss.Color("114"), // depth 2 — stories
+		lipgloss.Color("244"), // depth 3 and deeper
+	}
 
 	statusBarStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("241"))
@@ -1871,16 +1915,29 @@ func (b *Board) renderCard(t *task.Task, active bool, width int) string {
 	contentLines := b.cardContentLines(t, width)
 	content := strings.Join(contentLines, "\n")
 
-	// Pick style.
-	style := cardStyle
+	// Pick style. Hierarchy depth colors the border; blocked overrides the
+	// color because it is a warning, and selection changes the border weight.
+	style := cardStyle.BorderForeground(levelBorderColor(b.taskDepths[t.ID]))
 	if t.Blocked {
 		style = blockedCardStyle
 	}
 	if active {
-		style = activeCardStyle
+		style = style.Border(lipgloss.ThickBorder())
 	}
 
 	return style.Width(width - 2).Render(content) //nolint:mnd // border width
+}
+
+// levelBorderColor returns the card border color for a hierarchy depth,
+// clamping depths beyond the palette to its last entry.
+func levelBorderColor(depth int) lipgloss.Color {
+	if depth < 0 {
+		depth = 0
+	}
+	if depth >= len(levelBorderColors) {
+		depth = len(levelBorderColors) - 1
+	}
+	return levelBorderColors[depth]
 }
 
 func (b *Board) cardHeight(t *task.Task, width int) int {
@@ -2100,6 +2157,9 @@ func (b *Board) renderStatusBar() string {
 	}
 	if b.filterQuery != "" {
 		parts = append(parts, statusBarPart{text: fmt.Sprintf(" | filter:%q", b.filterQuery)})
+	}
+	if b.levelFilterOn {
+		parts = append(parts, statusBarPart{text: fmt.Sprintf(" | level:%d", b.levelFilter)})
 	}
 	parts = append(parts, statusBarPart{text: " | "})
 	actions := [][2]string{
@@ -2604,6 +2664,7 @@ func (b *Board) viewHelp() string {
 		{"s", "Cycle sort field (priority/created/updated/title)"},
 		{"S", "Reverse sort direction"},
 		{"/", "Search by title, or by ID with #12 (trailing space = exact)"},
+		{"L", "Cycle hierarchy level filter (all / 0 / 1 / ...)"},
 		{"r", "Refresh board"},
 		{"?", "Show this help"},
 		{"esc/q", "Quit"},
