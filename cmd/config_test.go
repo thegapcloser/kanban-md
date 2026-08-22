@@ -208,6 +208,40 @@ func TestConfigAccessors_SetTUIHideEmptyColumns_Invalid(t *testing.T) {
 	}
 }
 
+func TestConfigAccessors_SetTUILevelColors(t *testing.T) {
+	accessors := configAccessors()
+	cfg := config.NewDefault("Test")
+
+	if cfg.TUI.LevelColors {
+		t.Fatal("tui.level_colors defaults to true, want false so existing boards look unchanged")
+	}
+	if err := accessors["tui.level_colors"].set(cfg, "true"); err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.TUI.LevelColors {
+		t.Error("tui.level_colors = false, want true")
+	}
+	if got := accessors["tui.level_colors"].get(cfg); got != true {
+		t.Errorf("get returned %v, want true", got)
+	}
+
+	if err := accessors["tui.level_colors"].set(cfg, "false"); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.TUI.LevelColors {
+		t.Error("tui.level_colors = true after setting it back to false")
+	}
+}
+
+func TestConfigAccessors_SetTUILevelColors_Invalid(t *testing.T) {
+	accessors := configAccessors()
+	cfg := config.NewDefault("Test")
+
+	if err := accessors["tui.level_colors"].set(cfg, "nope"); err == nil {
+		t.Fatal("expected error for non-boolean level_colors")
+	}
+}
+
 func TestConfigAccessors_SetTUINarrowThreshold(t *testing.T) {
 	accessors := configAccessors()
 	cfg := config.NewDefault("Test")

@@ -9,9 +9,10 @@ import "github.com/antopolskiy/kanban-md/internal/task"
 // milestone/epic/story layout that makes depth 0 the milestones, depth 1 the
 // epics and depth 2 the stories, without the board needing a task-type field.
 //
-// A parent that no longer exists is treated as absent, so an orphaned task
-// stays visible as a root rather than dropping out of the map. Parent cycles
-// (including self-references) terminate at the first repeated ID.
+// Invalid parent links are tolerated so a broken board still renders. A parent
+// that no longer exists and a self-reference both count as no parent, matching
+// FindParent. A parent cycle is cut at its first repeated task, which then
+// counts as a root; the result does not depend on the order of tasks.
 func Depths(tasks []*task.Task) map[int]int {
 	byID := make(map[int]*task.Task, len(tasks))
 	for _, t := range tasks {
@@ -20,34 +21,56 @@ func Depths(tasks []*task.Task) map[int]int {
 
 	depths := make(map[int]int, len(tasks))
 	for _, t := range tasks {
-		depths[t.ID] = depthOf(t, byID, depths)
+		if _, resolved := depths[t.ID]; !resolved {
+			resolveDepth(t, byID, depths)
+		}
 	}
 	return depths
 }
 
-// depthOf walks the parent chain of t, memoizing resolved depths in depths.
-// seen guards against cycles: a repeated ID ends the walk at the current depth.
-func depthOf(t *task.Task, byID map[int]*task.Task, depths map[int]int) int {
-	seen := map[int]bool{}
-	depth := 0
-	for current := t; ; depth++ {
-		if seen[current.ID] {
-			return depth
-		}
-		seen[current.ID] = true
+// resolveDepth walks from t up to the top of its parent chain, then writes the
+// depth of every task on that chain into depths. Collecting the chain first
+// keeps the walk iterative (deep trees do not grow the stack) and keeps every
+// task on it consistent with the top it was reached from.
+func resolveDepth(t *task.Task, byID map[int]*task.Task, depths map[int]int) {
+	var chain []*task.Task
+	onChain := make(map[int]bool)
+	base := 0
 
-		if cached, ok := depths[current.ID]; ok && current != t {
-			return depth + cached
+	for current := t; ; {
+		if resolved, ok := depths[current.ID]; ok {
+			// Reached an ancestor whose depth is already known; the last task
+			// collected is its child.
+			base = resolved + 1
+			break
 		}
-		if current.Parent == nil {
-			return depth
+		if onChain[current.ID] {
+			break // cycle: the chain collected so far tops out at a root
 		}
-		parent, ok := byID[*current.Parent]
+		onChain[current.ID] = true
+		chain = append(chain, current)
+
+		parent, ok := resolveParent(current, byID)
 		if !ok {
-			return depth
+			break
 		}
 		current = parent
 	}
+
+	// chain runs from t up to its top, so the last entry sits at base.
+	for i, node := range chain {
+		depths[node.ID] = base + len(chain) - 1 - i
+	}
+}
+
+// resolveParent returns a task's parent, reporting false when the task is a
+// root: no parent set, a self-reference, or a parent that no longer exists.
+func resolveParent(t *task.Task, byID map[int]*task.Task) (*task.Task, bool) {
+	if t.Parent == nil || *t.Parent == t.ID {
+		return nil, false
+	}
+	parent, ok := byID[*t.Parent]
+	return parent, ok
 }
 
 // MaxDepth returns the deepest level present in a depth map, or 0 when empty.
