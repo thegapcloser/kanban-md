@@ -554,6 +554,27 @@ Task bodies are rendered as Markdown using the terminal's default foreground
 for the main text, so they remain readable when a terminal switches between
 light and dark themes while the TUI is running.
 
+### Relation navigation
+
+The parent and child rows of a detail view are links. `Tab` and `Shift+Tab` walk
+a cursor through them — the parent row first, then the children in ID order —
+and wrap around at both ends. The cursor starts inactive, so a freshly opened
+task still reads as plain text until the first `Tab`. `Enter` opens the task
+under the cursor.
+
+`Esc` and `Backspace` go one step back and restore the screen you left: same
+task, same scroll position, same cursor row. With no history left they close the
+detail view as before. `q` always closes the whole chain at once.
+
+A relation row is only navigable when its task is active (not archived). A
+parent that cannot be resolved — a dangling reference or a task pointing at
+itself — and an archived parent are shown dimmed: they take no cursor, have no
+click target, and do not highlight on hover. Direct children are always
+navigable, even when a search or a level filter hides them from the board.
+
+Opening a relation leaves the board alone: search query, level filter and card
+selection are all unchanged when the detail view closes.
+
 ### Narrow mode (small terminals)
 
 On terminals too narrow to show every column side by side — a phone over SSH, a
@@ -592,9 +613,11 @@ kanban-md tui --mouse
 |--------------|--------|
 | Click a card | Select the card and synchronize keyboard navigation |
 | Double-click the same card within 500 ms | Open its detail view |
-| Click `Back` | Return to the board |
+| Click `Back` | Go one step back in the relation history, or return to the board |
 | Wheel over a column | Activate that column and move its selection one card |
 | Wheel in a detail view | Scroll the task body three lines |
+| Click a relation line in a detail view | Open that task (single click) |
+| Move the pointer over a relation line | Underline it as a click target |
 | Hold a card, drag to another visible column, and release | Move the task to that status |
 
 The entire rendered destination column is a drop target, including its header,
@@ -610,6 +633,11 @@ terminal widths.
 Status moves made in the TUI preserve an existing task claim. If an unclaimed
 task enters a `require_claim` status, the TUI automatically claims it using the
 local hostname; that claim remains attached if the task later moves elsewhere.
+
+Hover needs to see the pointer move with no button held, so `--mouse` enables
+all-motion reporting (`1003`) rather than cell-motion reporting (`1002`). The
+terminal then reports every pointer move inside the TUI, which makes the note on
+native text selection below more relevant, not less.
 
 Terminals commonly reserve a modifier such as Shift or Option/Alt to bypass
 application mouse reporting for native text selection. The exact modifier is
@@ -646,7 +674,9 @@ Blocked cards keep their red border either way.
 |-----|--------|
 | `h` / `l` | Move between columns |
 | `j` / `k` | Move between tasks within a column |
-| `Enter` | View task details |
+| `Enter` | View task details; in a detail view, open the relation under the cursor |
+| `Tab` / `Shift+Tab` | In a detail view, move the relation cursor forward / backward |
+| `Esc` / `Backspace` | In a detail view, go one step back in the relation history, or close it |
 | `c` | Create task in current column |
 | `e` | Edit selected task (same 4-step flow as create) |
 | `E` | Open the selected task's Markdown file in `$VISUAL`, then `$EDITOR`, then `vi` when available |
@@ -659,7 +689,7 @@ Blocked cards keep their red border either way.
 | `v` | Cycle the hierarchy level filter (all levels → level 0 → level 1 → … → all levels) |
 | `r` | Refresh board |
 | `?` | Show help |
-| `q` / `Ctrl+C` | Quit |
+| `q` / `Ctrl+C` | Quit; in a detail view, `q` closes the whole relation history |
 
 ## Global flags
 
