@@ -84,3 +84,88 @@ func TestFindParentMissingOrSelfReference(t *testing.T) {
 		t.Fatalf("self parent = %#v, want nil", parent)
 	}
 }
+
+func TestSummarizeChildrenOrdersRankedChildrenByChildRank(t *testing.T) {
+	parentID := 10
+	rank10, rank20, rank30 := 10, 20, 30
+	tasks := []*task.Task{
+		{ID: 2, Title: "Third by rank", Status: "todo", Parent: &parentID, ChildRank: &rank30},
+		{ID: 5, Title: "First by rank", Status: "todo", Parent: &parentID, ChildRank: &rank10},
+		{ID: 3, Title: "Second by rank", Status: "todo", Parent: &parentID, ChildRank: &rank20},
+	}
+
+	summary := SummarizeChildren(tasks, parentID, config.NewDefault("test"), false)
+
+	if got := childIDs(summary); !equalInts(got, []int{5, 3, 2}) {
+		t.Fatalf("child IDs = %v, want [5 3 2]", got)
+	}
+	if summary.Children[0].ChildRank == nil || *summary.Children[0].ChildRank != rank10 {
+		t.Fatalf("first child rank = %v, want 10", summary.Children[0].ChildRank)
+	}
+}
+
+func TestSummarizeChildrenPutsUnrankedChildrenAfterRankedOnes(t *testing.T) {
+	parentID := 10
+	rank50 := 50
+	tasks := []*task.Task{
+		{ID: 2, Title: "Unranked low ID", Status: "todo", Parent: &parentID},
+		{ID: 9, Title: "Ranked high ID", Status: "todo", Parent: &parentID, ChildRank: &rank50},
+		{ID: 7, Title: "Unranked high ID", Status: "todo", Parent: &parentID},
+	}
+
+	summary := SummarizeChildren(tasks, parentID, config.NewDefault("test"), false)
+
+	if got := childIDs(summary); !equalInts(got, []int{9, 2, 7}) {
+		t.Fatalf("child IDs = %v, want [9 2 7]", got)
+	}
+}
+
+func TestSummarizeChildrenBreaksEqualRanksByID(t *testing.T) {
+	parentID := 10
+	rankA, rankB := 20, 20
+	tasks := []*task.Task{
+		{ID: 8, Title: "Higher ID", Status: "todo", Parent: &parentID, ChildRank: &rankA},
+		{ID: 4, Title: "Lower ID", Status: "todo", Parent: &parentID, ChildRank: &rankB},
+	}
+
+	summary := SummarizeChildren(tasks, parentID, config.NewDefault("test"), false)
+
+	if got := childIDs(summary); !equalInts(got, []int{4, 8}) {
+		t.Fatalf("child IDs = %v, want [4 8]", got)
+	}
+}
+
+func TestSummarizeChildrenRanksArchivedChildrenToo(t *testing.T) {
+	parentID := 10
+	rank10, rank20 := 10, 20
+	tasks := []*task.Task{
+		{ID: 2, Title: "Active child", Status: "todo", Parent: &parentID, ChildRank: &rank20},
+		{ID: 3, Title: "Archived child", Status: config.ArchivedStatus, Parent: &parentID, ChildRank: &rank10},
+	}
+
+	summary := SummarizeChildren(tasks, parentID, config.NewDefault("test"), true)
+
+	if got := childIDs(summary); !equalInts(got, []int{3, 2}) {
+		t.Fatalf("child IDs = %v, want [3 2]", got)
+	}
+}
+
+func childIDs(s ChildSummary) []int {
+	ids := make([]int, 0, len(s.Children))
+	for _, child := range s.Children {
+		ids = append(ids, child.ID)
+	}
+	return ids
+}
+
+func equalInts(got, want []int) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	for i := range got {
+		if got[i] != want[i] {
+			return false
+		}
+	}
+	return true
+}

@@ -40,6 +40,9 @@ func taskDetailCompact(w io.Writer, t *task.Task, children board.ChildSummary) {
 	if t.Estimate != "" {
 		line += " est:" + t.Estimate
 	}
+	if t.ChildRank != nil {
+		line += fmt.Sprintf(" child-rank:%d", *t.ChildRank)
+	}
 	if children.Total() > 0 {
 		line += fmt.Sprintf(" children:%d/%d done", children.Done, children.Total())
 	}

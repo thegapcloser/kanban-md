@@ -178,7 +178,7 @@ func taskDetail(w io.Writer, t *task.Task, parent *board.ParentTask, children bo
 
 	if t.Parent != nil {
 		fmt.Fprintln(w)
-		fmt.Fprintln(w, parentRelationLine(*t.Parent, parent))
+		fmt.Fprintln(w, parentRelationLine(*t.Parent, parent)+childRankSuffix(t.ChildRank))
 	}
 
 	if children.Total() > 0 {
@@ -190,7 +190,8 @@ func taskDetail(w io.Writer, t *task.Task, parent *board.ParentTask, children bo
 			if i == len(children.Children)-1 {
 				branch = "└─"
 			}
-			fmt.Fprintf(w, "%s #%d [%s] %s\n", branch, child.ID, child.Status, child.Title)
+			fmt.Fprintf(w, "%s #%d [%s] %s%s\n",
+				branch, child.ID, child.Status, child.Title, childRankSuffix(child.ChildRank))
 		}
 	}
 
@@ -205,6 +206,15 @@ func parentRelationLine(parentID int, parent *board.ParentTask) string {
 		return fmt.Sprintf("↑ Parent  #%d", parentID)
 	}
 	return fmt.Sprintf("↑ Parent  #%d [%s] %s", parent.ID, parent.Status, parent.Title)
+}
+
+// childRankSuffix renders an optional child rank for append-only use, so lines
+// without a rank keep their existing shape.
+func childRankSuffix(rank *int) string {
+	if rank == nil {
+		return ""
+	}
+	return dimStyle.Render(fmt.Sprintf(" (rank %d)", *rank))
 }
 
 // OverviewTable renders a board summary as a formatted dashboard.

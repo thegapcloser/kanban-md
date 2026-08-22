@@ -9,9 +9,10 @@ import (
 
 // ChildTask is the stable, read-only child representation used by task-detail views.
 type ChildTask struct {
-	ID     int    `json:"id"`
-	Title  string `json:"title"`
-	Status string `json:"status"`
+	ID        int    `json:"id"`
+	Title     string `json:"title"`
+	Status    string `json:"status"`
+	ChildRank *int   `json:"child_rank,omitempty"`
 }
 
 // ParentTask is the resolved, read-only parent representation used by task-detail views.
@@ -47,9 +48,11 @@ func FindParent(tasks []*task.Task, current *task.Task) *ParentTask {
 	return nil
 }
 
-// SummarizeChildren returns direct children in ascending task-ID order.
-// Archived children are omitted unless includeArchived is true. Self-references
-// are ignored defensively; normal CLI mutations reject them before writing.
+// SummarizeChildren returns direct children in child-rank order: ranked
+// children ascending by rank first, then unranked children, each group broken
+// by ascending task ID. Archived children are omitted unless includeArchived is
+// true. Self-references are ignored defensively; normal CLI mutations reject
+// them before writing.
 func SummarizeChildren(
 	tasks []*task.Task,
 	parentID int,
@@ -66,9 +69,10 @@ func SummarizeChildren(
 		}
 
 		summary.Children = append(summary.Children, ChildTask{
-			ID:     candidate.ID,
-			Title:  candidate.Title,
-			Status: candidate.Status,
+			ID:        candidate.ID,
+			Title:     candidate.Title,
+			Status:    candidate.Status,
+			ChildRank: candidate.ChildRank,
 		})
 		if cfg.IsTerminalStatus(candidate.Status) {
 			summary.Done++
@@ -76,7 +80,22 @@ func SummarizeChildren(
 	}
 
 	sort.Slice(summary.Children, func(i, j int) bool {
-		return summary.Children[i].ID < summary.Children[j].ID
+		return lessByChildRank(summary.Children[i], summary.Children[j])
 	})
 	return summary
+}
+
+// lessByChildRank orders ranked children ahead of unranked ones and breaks
+// equal ranks — and the unranked group — by ascending task ID.
+func lessByChildRank(a, b ChildTask) bool {
+	switch {
+	case a.ChildRank != nil && b.ChildRank == nil:
+		return true
+	case a.ChildRank == nil && b.ChildRank != nil:
+		return false
+	case a.ChildRank != nil && *a.ChildRank != *b.ChildRank:
+		return *a.ChildRank < *b.ChildRank
+	default:
+		return a.ID < b.ID
+	}
 }

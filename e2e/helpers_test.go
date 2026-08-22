@@ -97,6 +97,8 @@ type taskJSON struct {
 	ClaimedBy   string   `json:"claimed_by,omitempty"`
 	Blocked     bool     `json:"blocked,omitempty"`
 	BlockReason string   `json:"block_reason,omitempty"`
+	Parent      *int     `json:"parent,omitempty"`
+	ChildRank   *int     `json:"child_rank,omitempty"`
 }
 
 // runKanban executes the binary with --dir prepended for test isolation.

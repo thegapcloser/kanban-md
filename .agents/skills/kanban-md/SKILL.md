@@ -66,6 +66,7 @@ Each task is a `.md` file in `kanban/tasks/`. The CLI is `kanban-md`
 | Unblock a task                          | `kanban-md edit ID --unblock`                                    |
 | Add a dependency                        | `kanban-md edit ID --add-dep DEP_ID`                             |
 | Set a parent task                       | `kanban-md edit ID --parent PARENT_ID`                           |
+| Order children under a parent           | `kanban-md edit ID --child-rank 10`                              |
 | Append a note to task body              | `kanban-md edit ID --append-body "note" --timestamp`             |
 | Hand off a task to review               | `kanban-md handoff ID --claim <agent> --note "…" --release`      |
 | Delete a task                           | `kanban-md delete ID --yes`                                      |
@@ -93,7 +94,7 @@ Sort fields: id, title, status, priority, created, updated, due. `-r` reverses.
 ```bash
 kanban-md create "TITLE" [--status S] [--priority P] [--assignee A] \
   [--tags T1,T2] [--due YYYY-MM-DD] [--estimate E] [--body "TEXT"] \
-  [--parent ID] [--depends-on ID1,ID2] [--claim AGENT]
+  [--parent ID] [--child-rank N] [--depends-on ID1,ID2] [--claim AGENT]
 ```
 
 Prints the created task ID and summary. `--claim` immediately claims the task for an agent,
@@ -126,7 +127,8 @@ kanban-md edit ID[,ID,...] [--title T] [--status S] [--priority P] [--assignee A
   [--add-tag T] [--remove-tag T] [--due YYYY-MM-DD] [--clear-due] \
   [--estimate E] [--body "TEXT"] [-a "TEXT"] [--started YYYY-MM-DD] [--clear-started] \
   [--completed YYYY-MM-DD] [--clear-completed] [--parent ID] \
-  [--clear-parent] [--add-dep ID] [--remove-dep ID] \
+  [--clear-parent] [--child-rank N] [--clear-child-rank] \
+  [--add-dep ID] [--remove-dep ID] \
   [--block "REASON"] [--unblock] \
   [--claim AGENT] [--release] [-t]
 ```
@@ -258,6 +260,9 @@ All commands accept: `--json`, `--table`, `--compact` (alias `--oneline`), `--di
 
 1. Create parent: `kanban-md create "Epic title"`
 2. Create subtask: `kanban-md create "Subtask" --parent PARENT_ID`
+2a. Order subtasks: `kanban-md edit ID --child-rank 10` — ranked children render first in
+   `show PARENT_ID`, ascending by rank; unranked ones follow in task-ID order. Leave gaps
+   (10, 20, 30) so inserting later needs no renumbering. Requires a parent.
 3. Or add dependency: `kanban-md create "Task B" --depends-on TASK_A_ID`
 4. List unresolved: `kanban-md list --compact --blocked`
 

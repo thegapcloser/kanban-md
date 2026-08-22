@@ -49,6 +49,7 @@ func init() {
 	createCmd.Flags().String("due", "", "due date (YYYY-MM-DD)")
 	createCmd.Flags().String("estimate", "", "time estimate (e.g. 4h, 2d)")
 	createCmd.Flags().Int("parent", 0, "parent task ID")
+	createCmd.Flags().Int("child-rank", 0, "order among siblings under --parent (lower first)")
 	createCmd.Flags().IntSlice("depends-on", nil, "dependency task IDs (comma-separated)")
 	createCmd.Flags().String("body", "", "task body/description (markdown)")
 	createCmd.Flags().String("class", "", "class of service (expedite, fixed-date, standard, intangible)")
@@ -151,6 +152,10 @@ func buildCreateParams(cmd *cobra.Command, title string) (board.CreateParams, er
 	if cmd.Flags().Changed("parent") {
 		v, _ := cmd.Flags().GetInt("parent")
 		p.Parent = &v
+	}
+	if cmd.Flags().Changed("child-rank") {
+		v, _ := cmd.Flags().GetInt("child-rank")
+		p.ChildRank = &v
 	}
 	if v, _ := cmd.Flags().GetIntSlice("depends-on"); len(v) > 0 {
 		p.DependsOn = v

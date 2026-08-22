@@ -22,6 +22,7 @@ type Task struct {
 	Due         *date.Date `yaml:"due,omitempty" json:"due,omitempty"`
 	Estimate    string     `yaml:"estimate,omitempty" json:"estimate,omitempty"`
 	Parent      *int       `yaml:"parent,omitempty" json:"parent,omitempty"`
+	ChildRank   *int       `yaml:"child_rank,omitempty" json:"child_rank,omitempty"`
 	DependsOn   []int      `yaml:"depends_on,omitempty" json:"depends_on,omitempty"`
 	Blocked     bool       `yaml:"blocked,omitempty" json:"blocked,omitempty"`
 	BlockReason string     `yaml:"block_reason,omitempty" json:"block_reason,omitempty"`

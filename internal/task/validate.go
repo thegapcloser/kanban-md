@@ -192,6 +192,25 @@ func ValidateDependencyIDs(tasksDir string, selfID int, ids []int) error {
 	return nil
 }
 
+// ValidateChildRank checks a child rank against its owning task. A rank orders
+// a task among its siblings, so it must be positive and requires a parent.
+func ValidateChildRank(t *Task) error {
+	if t.ChildRank == nil {
+		return nil
+	}
+	if *t.ChildRank < 1 {
+		return clierr.Newf(clierr.InvalidInput,
+			"child rank must be a positive number, got %d", *t.ChildRank).
+			WithDetails(map[string]any{"child_rank": *t.ChildRank})
+	}
+	if t.Parent == nil {
+		return clierr.New(clierr.InvalidInput,
+			"child rank orders a task among its siblings and requires a parent").
+			WithDetails(map[string]any{"child_rank": *t.ChildRank})
+	}
+	return nil
+}
+
 // FormatDueDate returns a CLIError for invalid due date input.
 func FormatDueDate(input string, err error) *clierr.Error {
 	return ValidateDate("due", input, err)
