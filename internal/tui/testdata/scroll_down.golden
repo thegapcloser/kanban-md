@@ -20,11 +20,11 @@
                                                                                 │ #6 Done task 6   │
                                                                                 │ medium           │
                                                                                 ╰──────────────────╯
-                                                                                ┏━━━━━━━━━━━━━━━━━━┓
-                                                                                ┃ #2 Done task 2   ┃
-                                                                                ┃ medium           ┃
-                                                                                ┗━━━━━━━━━━━━━━━━━━┛
+                                                                                ╭──────────────────╮
+                                                                                │ #2 Done task 2   │
+                                                                                │ medium           │
+                                                                                ╰──────────────────╯
                                                                                   ↓ 4 more          
                                                                                                     
                                                                                                     
- 18 cards | ? help | create edit move +/- priority delete sort[priority↓] L level[all] / search quit
+ 18 cards | ? help | create edit move +/- priority delete sort[priority↓] level[all] / search quit  

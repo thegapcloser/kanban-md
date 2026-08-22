@@ -222,17 +222,31 @@ func TestMigrateV9ToV10(t *testing.T) {
 }
 
 func TestMigrateV10ToV11(t *testing.T) {
-	const wantVersion = 11
 	cfg := NewDefault("Test")
 	cfg.Version = 10
 
 	if err := migrate(cfg); err != nil {
 		t.Fatalf("migrate() v10→v11: %v", err)
 	}
-	if cfg.Version != wantVersion {
-		t.Errorf("Version = %d, want %d", cfg.Version, wantVersion)
+	if cfg.Version != CurrentVersion {
+		t.Errorf("Version = %d, want %d", cfg.Version, CurrentVersion)
 	}
 	if cfg.TUI.NarrowThreshold != 0 {
 		t.Errorf("NarrowThreshold = %d, want automatic default 0", cfg.TUI.NarrowThreshold)
+	}
+}
+
+func TestMigrateV11ToV12(t *testing.T) {
+	cfg := NewDefault("Test")
+	cfg.Version = 11
+
+	if err := migrate(cfg); err != nil {
+		t.Fatalf("migrate() v11→v12: %v", err)
+	}
+	if cfg.Version != CurrentVersion {
+		t.Errorf("Version = %d, want %d", cfg.Version, CurrentVersion)
+	}
+	if cfg.TUI.LevelColors {
+		t.Error("LevelColors should stay false by default after migration")
 	}
 }

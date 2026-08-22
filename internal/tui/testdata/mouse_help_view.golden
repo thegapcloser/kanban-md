@@ -20,7 +20,7 @@
 │  s             Cycle sort field (priority/created/updated/title)            │
 │  S             Reverse sort direction                                       │
 │  /             Search by title, or by ID with #12 (trailing space = exact)  │
-│  L             Cycle hierarchy level filter (all / 0 / 1 / ...)             │
+│  v             Cycle hierarchy level filter (all / 0 / 1 / ...)             │
 │  r             Refresh board                                                │
 │  ?             Show this help                                               │
 │  esc/q         Quit                                                         │

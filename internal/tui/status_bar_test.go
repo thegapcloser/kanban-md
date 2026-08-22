@@ -18,7 +18,7 @@ func TestStatusBarPrioritizesCardsHelpAndMouse(t *testing.T) {
 		lipgloss.SetColorProfile(previousProfile)
 	})
 
-	const actions = "create edit move +/- priority delete sort[priority↓] L level[all] / search quit"
+	const actions = "create edit move +/- priority delete sort[priority↓] level[all] / search quit"
 	tests := []struct {
 		name         string
 		mouseEnabled bool

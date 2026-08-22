@@ -187,6 +187,19 @@ func addExtendedConfigAccessors(accessors map[string]configAccessor) {
 		},
 		writable: true,
 	}
+	accessors["tui.level_colors"] = configAccessor{
+		get: func(c *config.Config) any { return c.TUI.LevelColors },
+		set: func(c *config.Config, v string) error {
+			b, err := strconv.ParseBool(v)
+			if err != nil {
+				return clierr.Newf(clierr.InvalidInput,
+					"invalid tui.level_colors %q: must be true or false", v)
+			}
+			c.TUI.LevelColors = b
+			return nil
+		},
+		writable: true,
+	}
 	accessors["tui.age_thresholds"] = configAccessor{
 		get: func(c *config.Config) any { return c.TUI.AgeThresholds },
 	}
@@ -210,6 +223,7 @@ func allConfigKeys() []string {
 		"tui.title_lines",
 		"tui.hide_empty_columns",
 		"tui.narrow_threshold",
+		"tui.level_colors",
 		"tui.age_thresholds",
 		"next_id",
 	}

@@ -372,7 +372,7 @@ func (b *Board) handleBoardActionKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		b.reloadKeepingSelection()
 	case "/":
 		b.handleSearchStart()
-	case "L":
+	case "v":
 		b.cycleLevelFilter()
 	case "ctrl+d":
 		b.view = viewDebug
@@ -1443,6 +1443,12 @@ var (
 			Padding(0, 1).
 			MarginBottom(0)
 
+	activeCardStyle = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("62")).
+			Padding(0, 1).
+			MarginBottom(0)
+
 	blockedCardStyle = lipgloss.NewStyle().
 				Border(lipgloss.RoundedBorder()).
 				BorderForeground(lipgloss.Color("196")).
@@ -1924,8 +1930,30 @@ func (b *Board) renderCard(t *task.Task, active bool, width int) string {
 	contentLines := b.cardContentLines(t, width)
 	content := strings.Join(contentLines, "\n")
 
-	// Pick style. Hierarchy depth colors the border; blocked overrides the
-	// color because it is a warning, and selection changes the border weight.
+	style := b.cardBorderStyle(t, active)
+
+	return style.Width(width - 2).Render(content) //nolint:mnd // border width
+}
+
+// cardBorderStyle picks a card's border style.
+//
+// With tui.level_colors off the border follows the original scheme: grey,
+// lilac while selected, red while blocked. With it on, hierarchy depth colors
+// the border and selection switches to a thick border instead, so the depth
+// color of the selected card stays readable. Blocked always wins the color,
+// because it is a warning rather than a classification.
+func (b *Board) cardBorderStyle(t *task.Task, active bool) lipgloss.Style {
+	if !b.cfg.TUI.LevelColors {
+		switch {
+		case active:
+			return activeCardStyle
+		case t.Blocked:
+			return blockedCardStyle
+		default:
+			return cardStyle
+		}
+	}
+
 	style := cardStyle.BorderForeground(levelBorderColor(b.taskDepths[t.ID]))
 	if t.Blocked {
 		style = blockedCardStyle
@@ -1933,8 +1961,7 @@ func (b *Board) renderCard(t *task.Task, active bool, width int) string {
 	if active {
 		style = style.Border(lipgloss.ThickBorder())
 	}
-
-	return style.Width(width - 2).Render(content) //nolint:mnd // border width
+	return style
 }
 
 // levelBorderColor returns the card border color for a hierarchy depth,
@@ -2175,7 +2202,7 @@ func (b *Board) renderStatusBar() string {
 		{"+/-", "priority"},
 		{"d", "delete"},
 		{"s", fmt.Sprintf("sort[%s%s]", b.sortField, arrow)},
-		{"L", fmt.Sprintf("level[%s]", b.levelFilterLabel())},
+		{"v", fmt.Sprintf("level[%s]", b.levelFilterLabel())},
 		{"/", "search"},
 		{"q", "quit"},
 	}
@@ -2671,7 +2698,7 @@ func (b *Board) viewHelp() string {
 		{"s", "Cycle sort field (priority/created/updated/title)"},
 		{"S", "Reverse sort direction"},
 		{"/", "Search by title, or by ID with #12 (trailing space = exact)"},
-		{"L", "Cycle hierarchy level filter (all / 0 / 1 / ...)"},
+		{"v", "Cycle hierarchy level filter (all / 0 / 1 / ...)"},
 		{"r", "Refresh board"},
 		{"?", "Show this help"},
 		{"esc/q", "Quit"},

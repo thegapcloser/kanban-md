@@ -618,21 +618,27 @@ terminal-dependent; use the terminal's normal selection shortcut or omit
 
 ### Hierarchy levels
 
-Cards are colored by their position in the parent/child tree, and the tree can
-be filtered one level at a time. The level comes from the `parent` chain alone —
-a task with no parent is level 0, its children are level 1, and so on. With the
-common milestone → epic → story layout that makes level 0 the milestones, level
-1 the epics, and level 2 the stories, without any extra field on the task.
+A board that mixes milestones, epics and stories can be filtered to one level of
+the tree at a time. The level comes from the `parent` chain alone — a task with
+no parent is level 0, its children are level 1, and so on. With the common
+milestone → epic → story layout that makes level 0 the milestones, level 1 the
+epics, and level 2 the stories, without any extra field on the task.
 
-Press `L` to cycle the filter: all levels → level 0 only → level 1 only → … →
+Press `v` to cycle the filter: all levels → level 0 only → level 1 only → … →
 back to all levels. The cycle stops at the deepest level actually present on the
 board. The status line lists the shortcut next to `sort` and doubles as the
 indicator: `level[all]` while unfiltered, `level[1]` while showing level 1.
 
-Each level has its own card border color, so the tree stays readable when no
-filter is active. The selected card is drawn with a thick border instead of a
-colored one, which keeps its level color visible and also makes the selection
-recognizable without color.
+Card borders can also be colored by level, which keeps the tree readable while
+no filter is active. This is off by default:
+
+```bash
+kanban-md config set tui.level_colors true
+```
+
+With it on, each level gets its own border color and the selected card is drawn
+with a thick border instead of a colored one, so its level color stays visible.
+Blocked cards keep their red border either way.
 
 ### Keyboard shortcuts
 
@@ -650,7 +656,7 @@ recognizable without color.
 | `s` | Cycle the sort field (priority → created → updated → title) |
 | `S` | Reverse the sort direction |
 | `/` | Search/filter tasks live. By default matches a case-insensitive substring of the title. Start the query with `#` to search ticket IDs instead: `#12` matches every ID beginning with `12` (e.g. #12, #121), and a trailing space (`#12 `) requires an exact match (only #12). `Enter` keeps the filter, `Esc` clears it |
-| `L` | Cycle the hierarchy level filter (all levels → level 0 → level 1 → … → all levels) |
+| `v` | Cycle the hierarchy level filter (all levels → level 0 → level 1 → … → all levels) |
 | `r` | Refresh board |
 | `?` | Show help |
 | `q` / `Ctrl+C` | Quit |

@@ -39,6 +39,7 @@ func TestAllConfigKeys_ExpectedCoverage(t *testing.T) {
 		"tui.title_lines",
 		"tui.hide_empty_columns",
 		"tui.narrow_threshold",
+		"tui.level_colors",
 		"tui.age_thresholds",
 		"next_id",
 	}

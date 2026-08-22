@@ -47,6 +47,7 @@ var migrations = map[int]func(*Config) error{
 	8:  migrateV8ToV9,
 	9:  migrateV9ToV10,
 	10: migrateV10ToV11,
+	11: migrateV11ToV12,
 }
 
 // migrateV1ToV2 adds the wip_limits field (defaults to nil/empty = unlimited).
@@ -146,5 +147,12 @@ func migrateV9ToV10(cfg *Config) error { //nolint:unparam // signature must matc
 // migrateV10ToV11 adds tui.narrow_threshold (default 0 = automatic).
 func migrateV10ToV11(cfg *Config) error { //nolint:unparam // signature must match migrations map type
 	cfg.Version = 11
+	return nil
+}
+
+// migrateV11ToV12 adds tui.level_colors (default false, so existing boards keep
+// their current card colors).
+func migrateV11ToV12(cfg *Config) error { //nolint:unparam // signature must match migrations map type
+	cfg.Version = 12
 	return nil
 }

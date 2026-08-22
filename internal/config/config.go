@@ -66,6 +66,9 @@ type TUIConfig struct {
 	// NarrowThreshold is the terminal width below which the TUI renders a
 	// single column at a time; 0 = automatic, 1 effectively disables it.
 	NarrowThreshold int `yaml:"narrow_threshold,omitempty"`
+	// LevelColors colors card borders by hierarchy depth and marks the
+	// selected card with a thick border instead of a colored one.
+	LevelColors bool `yaml:"level_colors,omitempty"`
 }
 
 // StatusConfig defines a status column and its enforcement rules.

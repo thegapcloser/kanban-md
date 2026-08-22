@@ -635,10 +635,7 @@ func TestCompatV9ConfigMigratesToV10(t *testing.T) {
 }
 
 func TestCompatV10ConfigMigratesToV11(t *testing.T) {
-	const wantVersion = 11
-	if CurrentVersion != wantVersion {
-		t.Fatalf("CurrentVersion = %d, want %d for narrow_threshold schema", CurrentVersion, wantVersion)
-	}
+	const wantVersion = 12
 
 	tmp := t.TempDir()
 	fixture := filepath.Join("testdata", "compat", "v10")
@@ -659,6 +656,34 @@ func TestCompatV10ConfigMigratesToV11(t *testing.T) {
 	}
 	if cfg.TUI.NarrowThreshold != 0 {
 		t.Errorf("TUI.NarrowThreshold = %d, want automatic default 0", cfg.TUI.NarrowThreshold)
+	}
+}
+
+func TestCompatV11ConfigMigratesToV12(t *testing.T) {
+	const wantVersion = 12
+	if CurrentVersion != wantVersion {
+		t.Fatalf("CurrentVersion = %d, want %d for level_colors schema", CurrentVersion, wantVersion)
+	}
+
+	tmp := t.TempDir()
+	fixture := filepath.Join("testdata", "compat", "v11")
+	copyDir(t, fixture, tmp)
+
+	cfg, err := Load(tmp)
+	if err != nil {
+		t.Fatalf("Load() v11 fixture: %v", err)
+	}
+	if cfg.Version != wantVersion {
+		t.Errorf("Version = %d, want %d (after migration)", cfg.Version, wantVersion)
+	}
+	if cfg.Board.Name != "Test Project v11" {
+		t.Errorf("Board.Name = %q, want %q", cfg.Board.Name, "Test Project v11")
+	}
+	if !cfg.TUI.HideEmptyColumns {
+		t.Error("TUI.HideEmptyColumns = false, want preserved true")
+	}
+	if cfg.TUI.LevelColors {
+		t.Error("TUI.LevelColors = true, want default false so existing boards look unchanged")
 	}
 }
 
