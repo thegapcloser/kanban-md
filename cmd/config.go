@@ -200,6 +200,20 @@ func addExtendedConfigAccessors(accessors map[string]configAccessor) {
 		},
 		writable: true,
 	}
+	accessors["tui.hierarchy_levels"] = configAccessor{
+		// get reports the effective value, so an unset field prints 1 and not <nil>.
+		get: func(c *config.Config) any { return c.HierarchyLevels() },
+		set: func(c *config.Config, v string) error {
+			n, err := strconv.Atoi(v)
+			if err != nil {
+				return clierr.Newf(clierr.InvalidInput,
+					"invalid tui.hierarchy_levels %q: must be an integer", v)
+			}
+			c.TUI.HierarchyLevels = &n
+			return nil // validation handles non-negative check
+		},
+		writable: true,
+	}
 	accessors["tui.age_thresholds"] = configAccessor{
 		get: func(c *config.Config) any { return c.TUI.AgeThresholds },
 	}
@@ -224,6 +238,7 @@ func allConfigKeys() []string {
 		"tui.hide_empty_columns",
 		"tui.narrow_threshold",
 		"tui.level_colors",
+		"tui.hierarchy_levels",
 		"tui.age_thresholds",
 		"next_id",
 	}

@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -422,5 +423,55 @@ func TestIndexOf_NotFound(t *testing.T) {
 func TestIndexOf_Empty(t *testing.T) {
 	if idx := IndexOf(nil, "a"); idx != -1 {
 		t.Errorf("IndexOf(nil) = %d, want -1", idx)
+	}
+}
+
+// --- tui.hierarchy_levels ---
+
+func TestHierarchyLevelsDefaultsToOneWhenUnset(t *testing.T) {
+	cfg := NewDefault("Test")
+
+	if cfg.TUI.HierarchyLevels != nil {
+		t.Fatalf("NewDefault sets HierarchyLevels to %d, want unset", *cfg.TUI.HierarchyLevels)
+	}
+	if got := cfg.HierarchyLevels(); got != 1 {
+		t.Errorf("HierarchyLevels() = %d, want 1 for an unset field", got)
+	}
+}
+
+func TestHierarchyLevelsZeroIsDistinctFromUnset(t *testing.T) {
+	cfg := NewDefault("Test")
+	zero := 0
+	cfg.TUI.HierarchyLevels = &zero
+
+	if got := cfg.HierarchyLevels(); got != 0 {
+		t.Errorf("HierarchyLevels() = %d, want 0: a field set to zero is not an unset field", got)
+	}
+}
+
+func TestValidateRejectsNegativeHierarchyLevels(t *testing.T) {
+	cfg := NewDefault("Test")
+	negative := -1
+	cfg.TUI.HierarchyLevels = &negative
+
+	if err := cfg.Validate(); err == nil {
+		t.Error("Validate() = nil, want an error for a negative tui.hierarchy_levels")
+	}
+}
+
+func TestSaveOmitsUnsetHierarchyLevels(t *testing.T) {
+	dir := t.TempDir()
+	cfg := NewDefault("Test")
+	cfg.SetDir(dir)
+	if err := cfg.Save(); err != nil {
+		t.Fatalf("Save() error: %v", err)
+	}
+
+	raw, err := os.ReadFile(filepath.Join(dir, ConfigFileName)) //nolint:gosec // test temp path
+	if err != nil {
+		t.Fatalf("reading saved config: %v", err)
+	}
+	if strings.Contains(string(raw), "hierarchy_levels") {
+		t.Errorf("saved config mentions hierarchy_levels, want the key omitted:\n%s", raw)
 	}
 }
