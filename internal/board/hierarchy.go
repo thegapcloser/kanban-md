@@ -129,15 +129,17 @@ func (ix *HierarchyIndex) Tree(taskID int, cfg *config.Config, levels int) Hiera
 
 // ancestorRows walks up from a task and returns its shown ancestors, outermost
 // first. It also reports whether the level budget, not the top of the board, is
-// what ended the chain — an archived, missing or repeated ancestor ends it
-// without a cut marker, because there is nothing more to reach.
+// what ended the chain: an ancestor the chain ran out of levels for is cut off
+// and gets a marker, while a missing or repeated ancestor ends the chain without
+// one, because there is nothing more to reach, and an archived one ends it as
+// the last shown row, which is the end made visible.
 func (ix *HierarchyIndex) ancestorRows(
 	current *task.Task,
 	cfg *config.Config,
 	levels int,
 ) ([]HierarchyRow, bool) {
 	onPath := map[int]bool{current.ID: true}
-	chain := make([]*task.Task, 0, levels) // nearest ancestor first
+	chain := make([]*task.Task, 0, ancestorChainCap(levels, len(ix.byID))) // nearest ancestor first
 	node := current
 
 	for len(chain) < levels {
@@ -154,8 +156,16 @@ func (ix *HierarchyIndex) ancestorRows(
 	}
 
 	parent, ok := resolveParent(node, ix.byID)
-	cut := ok && !onPath[parent.ID] && !cfg.IsArchivedStatus(parent.Status)
+	cut := ok && !onPath[parent.ID]
 	return ancestorRowsFrom(ix, chain, cfg), cut
+}
+
+// ancestorChainCap bounds the capacity the ancestor chain is allocated with.
+// levels comes from the config and has no maximum on purpose, while a chain can
+// never hold more tasks than the index does — sizing by levels alone turns a
+// large setting into a large allocation on every render.
+func ancestorChainCap(levels, indexed int) int {
+	return min(levels, indexed)
 }
 
 // ancestorRowsFrom turns a nearest-first ancestor chain into rows in reading

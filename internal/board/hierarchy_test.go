@@ -410,6 +410,60 @@ func TestHierarchyTreeArchivedAncestorEndsChain(t *testing.T) {
 	}
 }
 
+func TestHierarchyTreeArchivedAncestorBeyondTheBudgetIsCutAbove(t *testing.T) {
+	// The chain ends at an archived ancestor without a marker only when it
+	// actually reached that ancestor. Ran the level budget out below it, the
+	// archived row is itself cut off and the marker says so.
+	tasks := []*task.Task{
+		{ID: 1, Title: "Budget Root", Status: config.ArchivedStatus},
+		{ID: 2, Title: "Budget Mid", Status: statusBacklog, Parent: ptr(1)},
+		{ID: 3, Title: "Budget Leaf", Status: statusBacklog, Parent: ptr(2)},
+	}
+	ix := board.NewHierarchyIndex(tasks)
+	cfg := config.NewDefault("test")
+
+	cut := ix.Tree(3, cfg, 1)
+	wantCut := []string{
+		"d0/#2/backlog/Budget Mid/last=true/current=false/0-1",
+		"d1/#3/backlog/Budget Leaf/last=true/current=true/0-0",
+	}
+	if got := treeSummary(cut); !reflect.DeepEqual(got, wantCut) {
+		t.Errorf("Tree(3, 1) rows =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(wantCut, "\n"))
+	}
+	if !cut.CutAbove {
+		t.Error("Tree(3, 1) CutAbove = false, want true: the archived root is cut off, not reached")
+	}
+
+	reached := ix.Tree(3, cfg, 2)
+	wantReached := []string{
+		"d0/#1/archived/Budget Root/last=true/current=false/0-1",
+		"d1/#2/backlog/Budget Mid/last=true/current=false/0-1",
+		"d2/#3/backlog/Budget Leaf/last=true/current=true/0-0",
+	}
+	if got := treeSummary(reached); !reflect.DeepEqual(got, wantReached) {
+		t.Errorf("Tree(3, 2) rows =\n%s\nwant\n%s",
+			strings.Join(got, "\n"), strings.Join(wantReached, "\n"))
+	}
+	if reached.CutAbove {
+		t.Error("Tree(3, 2) CutAbove = true, want false: the chain ended at the archived row it shows")
+	}
+}
+
+func TestHierarchyTreeUnboundedLevelBudgetWalksTheWholeChain(t *testing.T) {
+	// hierarchy_levels has no maximum, and a budget far past the board still
+	// walks the chain and nothing else.
+	const length = 8
+	ix := board.NewHierarchyIndex(chainFixture(length))
+	cfg := config.NewDefault("test")
+
+	tree := ix.Tree(length, cfg, 1<<20)
+
+	if len(tree.Rows) != length || tree.CutAbove || tree.CutBelow {
+		t.Errorf("Tree(%d, 1<<20) = %v, above %t, below %t, want the whole chain uncut",
+			length, treeSummary(tree), tree.CutAbove, tree.CutBelow)
+	}
+}
+
 func TestHierarchyTreeDanglingAndSelfParentProduceNoRow(t *testing.T) {
 	tasks := []*task.Task{
 		{ID: 1, Title: "Dangling", Status: statusBacklog, Parent: ptr(999)},
