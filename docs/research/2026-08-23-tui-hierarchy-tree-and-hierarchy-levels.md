@@ -250,3 +250,26 @@ Colour per status was not built. It would need a status-to-colour mapping, and
 with user-defined status names that means a new config option, a migration, a
 fixture and a compat test. `IsTerminalStatus` already reads the user's `statuses`
 list, so the one distinction that carries meaning needed no configuration at all.
+
+## A later run, same day: two rules sharpened after review
+
+Two lenses read the change above. Neither found a defect in behaviour, but one
+state and two sentences were wrong.
+
+The colour was kept off an archived row only by the dim rule, and dim is
+switched off for the open ticket. An archived task opened directly would
+therefore have been green, since `IsTerminalStatus` counts `archived` as
+terminal. No path into the TUI reaches that state — the board columns exclude
+archived, `unfilteredTasks` filters it, and `refreshDetailTask` throws an
+archived task out of the detail view — but the board layer supports the shape and
+tests it. The rule moved to its source: an archived row is never terminal for the
+purpose of the colour. The dim-before-colour precedence stayed as the general
+rule it is.
+
+The counter rule as first written said it stands where "not all counted children
+stand as a row in the tree". Measured against the code, the rule is narrower: it
+looks *below* a row. On a board with cyclic `parent` links a counted child can be
+on screen as one of the row's own ancestors, and the counter stays. A brute-force
+pass over 4000 random boards found this to be the only divergence between wording
+and code, always in the harmless direction — a redundant counter, never a missing
+one — and never outside a cycle. The code was kept and the wording corrected.

@@ -586,10 +586,15 @@ Hierarchy
 
 `(x/y done)` counts direct, non-archived children in a terminal status over
 direct, non-archived children — the same number `show` reports. It stands on a
-row whose counted children the tree does not show: in the first example above,
-one level reaches the epics but not their stories, so each epic carries the
-counter and the milestone does not, because both its children are right below
-it. At two levels nothing is left to summarize and no row carries a counter.
+row that does not show **all** of its counted children — one missing child is
+enough. In the first example above, one level reaches the epics but not their
+stories, so each epic carries the counter and the milestone does not, because
+both its children are right below it. At two levels nothing is left to summarize
+and no row carries a counter. An ancestor is the case in between: it shows the
+one child that continues the path to your task and hides its siblings, so it
+keeps the counter. On a board whose `parent` links form a cycle a row can keep
+its counter although the child it counts is on screen as one of its own
+ancestors; the rule looks below a row, not above it.
 
 Three states say whether a row is a link. Plain text is a row you can open. **Bold**
 text is the task you are looking at; it sits at its place in the tree and is not
@@ -598,9 +603,10 @@ which is shown and ends the chain there, and the `…` marker. A parent referenc
 that cannot be resolved — a dangling ID or a task pointing at itself — produces
 no row at all; `show` still reports it.
 
-The `[status]` of a finished task is green: the last column before `archived`,
-whatever your board calls it, plus `archived` itself — the same rule `(x/y done)`
-counts by. The bracket stands on every row, so the signal does not depend on
+The `[status]` of a finished task is green: the last column of your board,
+whatever you call it. This is the same notion of "finished" that `(x/y done)`
+counts by, but not the same rule — the counter drops archived children before it
+looks at their status, so `[archived]` never reaches its numbers. The bracket stands on every row, so the signal does not depend on
 having children. A dimmed row stays fully dimmed, `[archived]` included: an
 archived ancestor is not finished, it is gone.
 
