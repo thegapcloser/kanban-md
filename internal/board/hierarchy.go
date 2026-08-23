@@ -1,31 +1,284 @@
 package board
 
-import "github.com/antopolskiy/kanban-md/internal/task"
+import (
+	"sort"
 
-// Depths returns the hierarchy depth of every task, keyed by task ID.
+	"github.com/antopolskiy/kanban-md/internal/config"
+	"github.com/antopolskiy/kanban-md/internal/task"
+)
+
+// HierarchyIndex answers parent, child and depth questions about a task set in
+// constant time per lookup. It is built once per load, so a view that walks the
+// hierarchy per render does not scan the task list per row.
 //
-// Depth is derived from the parent chain alone: a task without a resolvable
+// Hierarchy is derived from the parent chain alone: a task without a resolvable
 // parent has depth 0, its children depth 1, and so on. With the common
 // milestone/epic/story layout that makes depth 0 the milestones, depth 1 the
 // epics and depth 2 the stories, without the board needing a task-type field.
 //
-// Invalid parent links are tolerated so a broken board still renders. A parent
-// that no longer exists and a self-reference both count as no parent, matching
-// FindParent. A parent cycle is cut at its first repeated task, which then
-// counts as a root; the result does not depend on the order of tasks.
-func Depths(tasks []*task.Task) map[int]int {
-	byID := make(map[int]*task.Task, len(tasks))
-	for _, t := range tasks {
-		byID[t.ID] = t
-	}
+// Invalid parent links are tolerated so a broken board still renders, and one
+// rule covers every walk in this file, upwards and downwards: a parent that no
+// longer exists and a self-reference both count as no parent, matching
+// FindParent, and a chain is cut at its first repeated task. Depths therefore do
+// not depend on the order of tasks, and Tree renders no task twice.
+type HierarchyIndex struct {
+	tasks    []*task.Task
+	byID     map[int]*task.Task
+	children map[int][]*task.Task
+}
 
-	depths := make(map[int]int, len(tasks))
+// NewHierarchyIndex indexes a task set by ID and by parent ID. Archived tasks
+// are included: an archived ancestor still has to resolve. Callers that must
+// not show archived tasks filter them per walk.
+func NewHierarchyIndex(tasks []*task.Task) *HierarchyIndex {
+	ix := &HierarchyIndex{
+		tasks:    tasks,
+		byID:     make(map[int]*task.Task, len(tasks)),
+		children: make(map[int][]*task.Task),
+	}
 	for _, t := range tasks {
+		ix.byID[t.ID] = t
+	}
+	for _, t := range tasks {
+		if t.Parent == nil || *t.Parent == t.ID {
+			continue
+		}
+		ix.children[*t.Parent] = append(ix.children[*t.Parent], t)
+	}
+	for _, bucket := range ix.children {
+		sort.Slice(bucket, func(i, j int) bool { return bucket[i].ID < bucket[j].ID })
+	}
+	return ix
+}
+
+// Task returns the indexed task with the given ID, or nil when it is unknown.
+func (ix *HierarchyIndex) Task(id int) *task.Task {
+	return ix.byID[id]
+}
+
+// Depths returns the hierarchy depth of every indexed task, keyed by task ID.
+// See HierarchyIndex for how depth is derived and how broken links are handled.
+func (ix *HierarchyIndex) Depths() map[int]int {
+	depths := make(map[int]int, len(ix.tasks))
+	for _, t := range ix.tasks {
 		if _, resolved := depths[t.ID]; !resolved {
-			resolveDepth(t, byID, depths)
+			resolveDepth(t, ix.byID, depths)
 		}
 	}
 	return depths
+}
+
+// Depths returns the hierarchy depth of every task, keyed by task ID. It is the
+// one-shot form of HierarchyIndex.Depths for callers that hold no index.
+func Depths(tasks []*task.Task) map[int]int {
+	return NewHierarchyIndex(tasks).Depths()
+}
+
+// HierarchyRow is one line of a HierarchyTree. Depth is relative to the topmost
+// shown row, which is depth 0. Last reports whether the row is the last shown
+// sibling on its level, Current marks the task the tree was built for. Done and
+// Total count direct, non-archived children in a terminal status over direct,
+// non-archived children, exactly as SummarizeChildren does.
+type HierarchyRow struct {
+	ID      int
+	Title   string
+	Status  string
+	Depth   int
+	Last    bool
+	Current bool
+	Done    int
+	Total   int
+}
+
+// HierarchyTree is the ancestor path of a task, the task itself and its
+// descendants, in reading order. CutAbove and CutBelow report that the tree
+// continues beyond the topmost respectively the deepest shown row.
+type HierarchyTree struct {
+	Rows     []HierarchyRow
+	CutAbove bool
+	CutBelow bool
+}
+
+// Tree builds the hierarchy around a task: at most levels ancestors above it and
+// at most levels of descendants below it, so one number governs both directions.
+// Archived descendants are left out, an archived ancestor is shown as the last
+// row and ends the chain. An unknown task yields an empty tree.
+func (ix *HierarchyIndex) Tree(taskID int, cfg *config.Config, levels int) HierarchyTree {
+	current := ix.byID[taskID]
+	if current == nil {
+		return HierarchyTree{}
+	}
+	if levels < 0 {
+		levels = 0
+	}
+
+	ancestors, cutAbove := ix.ancestorRows(current, cfg, levels)
+	onPath := make(map[int]bool, len(ancestors)+1)
+	for _, row := range ancestors {
+		onPath[row.ID] = true
+	}
+	onPath[current.ID] = true
+
+	rows := make([]HierarchyRow, 0, len(ancestors)+1)
+	rows = append(rows, ancestors...)
+	rows = append(rows, ix.row(current, len(ancestors), true, true, cfg))
+	rows = append(rows, ix.descendantRows(current, cfg, levels, len(ancestors)+1, onPath)...)
+
+	return HierarchyTree{Rows: rows, CutAbove: cutAbove, CutBelow: ix.cutBelow(rows, cfg)}
+}
+
+// ancestorRows walks up from a task and returns its shown ancestors, outermost
+// first. It also reports whether the level budget, not the top of the board, is
+// what ended the chain — an archived, missing or repeated ancestor ends it
+// without a cut marker, because there is nothing more to reach.
+func (ix *HierarchyIndex) ancestorRows(
+	current *task.Task,
+	cfg *config.Config,
+	levels int,
+) ([]HierarchyRow, bool) {
+	onPath := map[int]bool{current.ID: true}
+	chain := make([]*task.Task, 0, levels) // nearest ancestor first
+	node := current
+
+	for len(chain) < levels {
+		parent, ok := resolveParent(node, ix.byID)
+		if !ok || onPath[parent.ID] {
+			return ancestorRowsFrom(ix, chain, cfg), false
+		}
+		onPath[parent.ID] = true
+		chain = append(chain, parent)
+		if cfg.IsArchivedStatus(parent.Status) {
+			return ancestorRowsFrom(ix, chain, cfg), false
+		}
+		node = parent
+	}
+
+	parent, ok := resolveParent(node, ix.byID)
+	cut := ok && !onPath[parent.ID] && !cfg.IsArchivedStatus(parent.Status)
+	return ancestorRowsFrom(ix, chain, cfg), cut
+}
+
+// ancestorRowsFrom turns a nearest-first ancestor chain into rows in reading
+// order. Every ancestor is the last shown row on its level, because the tree
+// never shows an ancestor's siblings.
+func ancestorRowsFrom(ix *HierarchyIndex, chain []*task.Task, cfg *config.Config) []HierarchyRow {
+	rows := make([]HierarchyRow, 0, len(chain))
+	for i := len(chain) - 1; i >= 0; i-- {
+		rows = append(rows, ix.row(chain[i], len(chain)-1-i, true, false, cfg))
+	}
+	return rows
+}
+
+// descendantRows walks down from a task in preorder, siblings in ascending task
+// ID. baseDepth is the depth of its direct children. onPath carries the tasks
+// already on the rendered path and is what stops a cycle.
+func (ix *HierarchyIndex) descendantRows(
+	root *task.Task,
+	cfg *config.Config,
+	levels, baseDepth int,
+	onPath map[int]bool,
+) []HierarchyRow {
+	var rows []HierarchyRow
+
+	var walk func(node *task.Task, rel int)
+	walk = func(node *task.Task, rel int) {
+		if rel >= levels {
+			return // the level budget is spent; cutBelow reports what is left
+		}
+		shown := make([]*task.Task, 0, len(ix.children[node.ID]))
+		for _, kid := range ix.activeChildren(node.ID, cfg) {
+			if !onPath[kid.ID] {
+				shown = append(shown, kid)
+			}
+		}
+		for i, kid := range shown {
+			onPath[kid.ID] = true
+			rows = append(rows, ix.row(kid, baseDepth+rel, i == len(shown)-1, false, cfg))
+			walk(kid, rel+1)
+			delete(onPath, kid.ID)
+		}
+	}
+	walk(root, 0)
+
+	return rows
+}
+
+// cutBelow reports whether the tree continues below its deepest shown level. One
+// marker per side is enough: which node exactly has more children is what the
+// per-row counter says.
+func (ix *HierarchyIndex) cutBelow(rows []HierarchyRow, cfg *config.Config) bool {
+	deepest := 0
+	for _, row := range rows {
+		if row.Depth > deepest {
+			deepest = row.Depth
+		}
+	}
+	for _, row := range rows {
+		if row.Depth == deepest && ix.hasActiveChild(row.ID, cfg) {
+			return true
+		}
+	}
+	return false
+}
+
+// hasActiveChild reports whether a task has a direct, non-archived child. It
+// answers the question cutBelow asks without building a slice per row.
+func (ix *HierarchyIndex) hasActiveChild(id int, cfg *config.Config) bool {
+	for _, kid := range ix.children[id] {
+		if !cfg.IsArchivedStatus(kid.Status) {
+			return true
+		}
+	}
+	return false
+}
+
+// activeChildren returns the direct, non-archived children of a task in
+// ascending task-ID order.
+func (ix *HierarchyIndex) activeChildren(id int, cfg *config.Config) []*task.Task {
+	bucket := ix.children[id]
+	active := make([]*task.Task, 0, len(bucket))
+	for _, kid := range bucket {
+		if !cfg.IsArchivedStatus(kid.Status) {
+			active = append(active, kid)
+		}
+	}
+	return active
+}
+
+// row builds one tree row, including its child counts.
+func (ix *HierarchyIndex) row(
+	t *task.Task,
+	depth int,
+	last, current bool,
+	cfg *config.Config,
+) HierarchyRow {
+	done, total := ix.childCounts(t.ID, cfg)
+	return HierarchyRow{
+		ID:      t.ID,
+		Title:   t.Title,
+		Status:  t.Status,
+		Depth:   depth,
+		Last:    last,
+		Current: current,
+		Done:    done,
+		Total:   total,
+	}
+}
+
+// childCounts counts direct, non-archived children and how many of them are in a
+// terminal status, matching SummarizeChildren.
+func (ix *HierarchyIndex) childCounts(id int, cfg *config.Config) (int, int) {
+	done, total := 0, 0
+	for _, kid := range ix.children[id] {
+		if cfg.IsArchivedStatus(kid.Status) {
+			continue
+		}
+		total++
+		if cfg.IsTerminalStatus(kid.Status) {
+			done++
+		}
+	}
+	return done, total
 }
 
 // resolveDepth walks from t up to the top of its parent chain, then writes the
