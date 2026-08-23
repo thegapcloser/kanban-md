@@ -111,6 +111,11 @@ type Board struct {
 	levelFilter   int         // hierarchy depth to show while levelFilterOn
 	taskDepths    map[int]int // hierarchy depth per task ID, rebuilt on every load
 
+	// hierarchyIndex answers parent, child and depth questions about allTasks
+	// without scanning it, rebuilt on every load. rebuildHierarchyIndex is its
+	// only build site, so a path that changes allTasks has one call to make.
+	hierarchyIndex *board.HierarchyIndex
+
 	// Detail view. The zero value means "no relation cursor", so every path
 	// that opens the detail view starts with the cursor inactive.
 	detailTask      *task.Task
@@ -1004,9 +1009,7 @@ func (b *Board) loadTasks() {
 	}
 	b.unfilteredTasks = activeTasks
 
-	// Depths come from all tasks, archived ones included: an archived parent
-	// still determines how deep its children sit in the tree.
-	b.taskDepths = board.Depths(tasks)
+	b.rebuildHierarchyIndex()
 
 	visibleTasks := b.applyBoardFilters(activeTasks)
 	b.tasks = visibleTasks

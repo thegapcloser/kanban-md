@@ -27,6 +27,7 @@ func newMouseTestBoard() *Board {
 	}
 	b := &Board{
 		cfg:             cfg,
+		allTasks:        tasks,
 		tasks:           tasks,
 		unfilteredTasks: tasks,
 		columns:         columnsForTasks(cfg.BoardStatuses(), tasks),
@@ -38,6 +39,8 @@ func newMouseTestBoard() *Board {
 		sortField:       "priority",
 		sortReverse:     true,
 	}
+	// A struct literal skips loadTasks, so the index has to be built by hand.
+	b.rebuildHierarchyIndex()
 	_ = b.View()
 	return b
 }
@@ -260,10 +263,13 @@ func TestMouseWheelDetailClampIncludesChildren(t *testing.T) {
 	parent := b.tasks[0]
 	for id := 10; id < 30; id++ {
 		parentID := parent.ID
-		b.unfilteredTasks = append(b.unfilteredTasks, &task.Task{
+		child := &task.Task{
 			ID: id, Title: fmt.Sprintf("Child %d", id), Status: "todo", Parent: &parentID,
-		})
+		}
+		b.unfilteredTasks = append(b.unfilteredTasks, child)
+		b.allTasks = append(b.allTasks, child)
 	}
+	b.rebuildHierarchyIndex()
 	b.detailTask = parent
 	b.view = viewDetail
 	_ = b.View()

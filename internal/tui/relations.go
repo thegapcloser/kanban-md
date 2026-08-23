@@ -266,17 +266,27 @@ func (b *Board) detailBackSteps() int {
 	return steps
 }
 
+// rebuildHierarchyIndex indexes allTasks and refreshes the depths derived from
+// it. It is the only build site of the index, so every path that changes
+// allTasks outside loadTasks has exactly one call to make.
+//
+// Depths come from all tasks, archived ones included: an archived parent still
+// determines how deep its children sit in the tree.
+func (b *Board) rebuildHierarchyIndex() {
+	b.hierarchyIndex = board.NewHierarchyIndex(b.allTasks)
+	b.taskDepths = b.hierarchyIndex.Depths()
+}
+
 // relationVisible reports whether a task is reachable at all: it mirrors
 // refreshDetailTask, where only a task in unfilteredTasks survives the next
 // reload. It is a precondition for a navigable row, not the whole rule — a
 // parent row also needs FindParent to have resolved the reference.
+//
+// unfilteredTasks is allTasks minus the archived ones by construction, so an
+// indexed, non-archived task is exactly a member of it.
 func (b *Board) relationVisible(taskID int) bool {
-	for _, t := range b.unfilteredTasks {
-		if t.ID == taskID {
-			return true
-		}
-	}
-	return false
+	t := b.hierarchyIndex.Task(taskID)
+	return t != nil && !b.cfg.IsArchivedStatus(t.Status)
 }
 
 // detailContent resolves a task's relations and builds its detail-view content.

@@ -2,6 +2,7 @@ package tui
 
 import (
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
 
+	"github.com/antopolskiy/kanban-md/internal/board"
 	"github.com/antopolskiy/kanban-md/internal/config"
 	"github.com/antopolskiy/kanban-md/internal/task"
 )
@@ -63,6 +65,8 @@ func newRelationTestBoard() *Board {
 		sortField:       sortFields[0],
 		sortReverse:     true,
 	}
+	// A struct literal skips loadTasks, so the index has to be built by hand.
+	b.rebuildHierarchyIndex()
 	_ = b.View()
 	return b
 }
@@ -506,5 +510,44 @@ func TestTaskBodyMemoPicksUpChangedBody(t *testing.T) {
 	}
 	if strings.Contains(got, "first") {
 		t.Errorf("memo returned the previous body: %q", got)
+	}
+}
+
+func TestRelationVisibleMatchesUnfilteredTaskSet(t *testing.T) {
+	// relationVisible decides which rows can be opened. Resolving it through the
+	// hierarchy index must answer for exactly the tasks unfilteredTasks holds —
+	// no more (archived ones) and no less (filtered-out ones).
+	b := newRelationTestBoard()
+
+	inUnfiltered := make(map[int]bool, len(b.unfilteredTasks))
+	for _, tk := range b.unfilteredTasks {
+		inUnfiltered[tk.ID] = true
+	}
+	for _, tk := range b.allTasks {
+		if got := b.relationVisible(tk.ID); got != inUnfiltered[tk.ID] {
+			t.Errorf("relationVisible(%d) = %t, want %t (status %q)",
+				tk.ID, got, inUnfiltered[tk.ID], tk.Status)
+		}
+	}
+	for _, unknown := range []int{0, 999} {
+		if b.relationVisible(unknown) {
+			t.Errorf("relationVisible(%d) = true, want false for an unknown task", unknown)
+		}
+	}
+}
+
+func TestRebuildHierarchyIndexIsTheOnlyDepthSource(t *testing.T) {
+	b := newRelationTestBoard()
+
+	b.rebuildHierarchyIndex()
+
+	if got, want := b.taskDepths, board.Depths(b.allTasks); !reflect.DeepEqual(got, want) {
+		t.Errorf("taskDepths = %v, want %v", got, want)
+	}
+	if b.hierarchyIndex == nil {
+		t.Fatal("hierarchyIndex = nil after rebuildHierarchyIndex")
+	}
+	if b.hierarchyIndex.Task(4) == nil {
+		t.Error("index does not resolve the archived task #4, which parent rows need")
 	}
 }
