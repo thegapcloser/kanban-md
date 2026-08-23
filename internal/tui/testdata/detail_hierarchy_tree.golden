@@ -7,11 +7,11 @@ Created:        0001-01-01 00:00
 Updated:        2026-01-15 10:00
 
 Hierarchy
-  └─ #1 [todo] Milestone One (1/2 done)
-     ├─ #2 [done] Epic Two (2/2 done)
+  └─ #1 [todo] Milestone One
+     ├─ #2 [done] Epic Two
      │  ├─ #4 [done] Story Four
      │  └─ #5 [done] Story Five
-     └─ #3 [backlog] Epic Three (0/1 done)
+     └─ #3 [backlog] Epic Three
         └─ #6 [backlog] Story Six
 
 q/esc:back  tab:relations  enter:open

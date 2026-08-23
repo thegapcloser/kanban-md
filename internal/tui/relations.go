@@ -29,7 +29,7 @@ type relationRef struct {
 	lineCount int
 	navigable bool
 	current   bool
-	complete  bool
+	terminal  bool
 	lines     []relationLine
 }
 
@@ -216,9 +216,9 @@ type relationDecor struct {
 
 // decorateRelationLine prefixes a tree line with its gutter and decorates its
 // text: bold for the open task, dim for a row that cannot be opened, underline
-// for the hovered row and green for a complete counter. Gutter, indentation and
-// branch glyph stay undecorated — the click target is the node, not the frame
-// around it.
+// for the hovered row and green for a status bracket that reports the task is
+// finished. Gutter, indentation and branch glyph stay undecorated — the click
+// target is the node, not the frame around it.
 func decorateRelationLine(ref relationRef, line relationLine, decor relationDecor) string {
 	gutter := relationGutter
 	if decor.onCursor && decor.firstLine {
@@ -229,16 +229,24 @@ func decorateRelationLine(ref relationRef, line relationLine, decor relationDeco
 		bold:      ref.current,
 		underline: decor.onHover,
 	}
-	out := gutter + line.prefix
-	if line.text != "" {
-		out += relationSegmentStyle(state).Render(line.text)
+	statusState := state
+	statusState.terminal = ref.terminal
+
+	return gutter + line.prefix +
+		renderRelationSegment(line.head, state) +
+		renderRelationSegment(line.status, statusState) +
+		renderRelationSegment(line.tail, state) +
+		renderRelationSegment(line.count, state)
+}
+
+// renderRelationSegment styles one segment of a tree line. An empty segment
+// renders to nothing at all, so a row never carries escape codes for a part it
+// does not have.
+func renderRelationSegment(text string, state relationLineState) string {
+	if text == "" {
+		return ""
 	}
-	if line.count != "" {
-		countState := state
-		countState.complete = ref.complete
-		out += relationSegmentStyle(countState).Render(line.count)
-	}
-	return out
+	return relationSegmentStyle(state).Render(text)
 }
 
 // detailHint builds the fixed bottom line of the detail view. Only keys that do

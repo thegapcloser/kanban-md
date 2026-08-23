@@ -81,16 +81,20 @@ func Depths(tasks []*task.Task) map[int]int {
 // shown row, which is depth 0. Last reports whether the row is the last shown
 // sibling on its level, Current marks the task the tree was built for. Done and
 // Total count direct, non-archived children in a terminal status over direct,
-// non-archived children, exactly as SummarizeChildren does.
+// non-archived children, exactly as SummarizeChildren does. ChildrenShown
+// reports that the tree holds every one of those Total children as a row of its
+// own below this one, which is what makes the counter of this row redundant. A
+// row without counted children shows everything it counts.
 type HierarchyRow struct {
-	ID      int
-	Title   string
-	Status  string
-	Depth   int
-	Last    bool
-	Current bool
-	Done    int
-	Total   int
+	ID            int
+	Title         string
+	Status        string
+	Depth         int
+	Last          bool
+	Current       bool
+	Done          int
+	Total         int
+	ChildrenShown bool
 }
 
 // HierarchyTree is the ancestor path of a task, the task itself and its
@@ -124,12 +128,36 @@ func (ix *HierarchyIndex) Tree(taskID int, cfg *config.Config, levels int) Hiera
 	}
 	onPath[current.ID] = true
 
-	rows := make([]HierarchyRow, 0, len(ancestors)+1)
+	descendants, shownChildren := ix.descendantRows(current, cfg, levels, len(ancestors)+1, onPath)
+	rows := make([]HierarchyRow, 0, len(ancestors)+1+len(descendants))
 	rows = append(rows, ancestors...)
 	rows = append(rows, ix.row(current, len(ancestors), true, true, cfg))
-	rows = append(rows, ix.descendantRows(current, cfg, levels, len(ancestors)+1, onPath)...)
+	rows = append(rows, descendants...)
+	addChainChildren(shownChildren, rows[:len(ancestors)+1], cfg)
+	markChildrenShown(rows, shownChildren)
 
 	return HierarchyTree{Rows: rows, CutAbove: cutAbove, CutBelow: ix.cutBelow(rows, cfg)}
+}
+
+// addChainChildren records the one child every ancestor shows: the tree never
+// renders an ancestor's siblings, so the row below it on the path is the only
+// child of it on screen. path runs from the outermost ancestor to the open task,
+// and an archived open task is no more a shown child than it is a counted one.
+func addChainChildren(shownChildren map[int]int, path []HierarchyRow, cfg *config.Config) {
+	for i := range len(path) - 1 {
+		if !cfg.IsArchivedStatus(path[i+1].Status) {
+			shownChildren[path[i].ID]++
+		}
+	}
+}
+
+// markChildrenShown fills in ChildrenShown from the children the tree actually
+// placed under each row. Counting is enough to compare: shownChildren only ever
+// holds children that Total counts too, so equal numbers mean the same set.
+func markChildrenShown(rows []HierarchyRow, shownChildren map[int]int) {
+	for i := range rows {
+		rows[i].ChildrenShown = shownChildren[rows[i].ID] == rows[i].Total
+	}
 }
 
 // ancestorRows walks up from a task and returns its shown ancestors, outermost
@@ -189,13 +217,18 @@ func ancestorRowsFrom(ix *HierarchyIndex, chain []*task.Task, cfg *config.Config
 // rows and the open task, and skipping a child that sits on it is what ends a
 // cycle: a task has at most one parent, so the descent reaches every task at
 // most once and the only path it can run into is the one it started from.
+//
+// Alongside the rows it reports, per task ID, how many of its counted children
+// it placed as a row below it. A child the level budget did not reach and a
+// child the cycle guard skipped are both not among them.
 func (ix *HierarchyIndex) descendantRows(
 	root *task.Task,
 	cfg *config.Config,
 	levels, baseDepth int,
 	onPath map[int]bool,
-) []HierarchyRow {
+) ([]HierarchyRow, map[int]int) {
 	var rows []HierarchyRow
+	shownChildren := make(map[int]int)
 
 	var walk func(node *task.Task, rel int)
 	walk = func(node *task.Task, rel int) {
@@ -208,6 +241,7 @@ func (ix *HierarchyIndex) descendantRows(
 				shown = append(shown, kid)
 			}
 		}
+		shownChildren[node.ID] += len(shown)
 		for i, kid := range shown {
 			rows = append(rows, ix.row(kid, baseDepth+rel, i == len(shown)-1, false, cfg))
 			walk(kid, rel+1)
@@ -215,7 +249,7 @@ func (ix *HierarchyIndex) descendantRows(
 	}
 	walk(root, 0)
 
-	return rows
+	return rows, shownChildren
 }
 
 // cutBelow reports whether the tree continues below its deepest shown level. One

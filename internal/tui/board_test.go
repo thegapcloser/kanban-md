@@ -1313,7 +1313,9 @@ func TestBoard_DetailShowsDirectActiveChildrenAndRollup(t *testing.T) {
 	v := b.View()
 
 	for _, want := range []string{
-		"└─ #1 [backlog] Epic Alpha (1/2 done)",
+		// Both counted children of #1 stand below it, so its rollup is gone;
+		// the child whose own child is out of the tree keeps its counter.
+		"└─ #1 [backlog] Epic Alpha",
 		"├─ #2 [backlog] Backlog child (0/1 done)",
 		"└─ #3 [done] Done child",
 	} {
@@ -1321,7 +1323,7 @@ func TestBoard_DetailShowsDirectActiveChildrenAndRollup(t *testing.T) {
 			t.Errorf("detail view missing %q:\n%s", want, v)
 		}
 	}
-	for _, unwanted := range []string{"Archived child", "Grandchild"} {
+	for _, unwanted := range []string{"Archived child", "Grandchild", "Epic Alpha (1/2 done)"} {
 		if containsStr(v, unwanted) {
 			t.Errorf("detail view should not contain %q:\n%s", unwanted, v)
 		}

@@ -140,7 +140,9 @@ func TestBoard_DetailRelationLinesUnchangedWithoutCursor(t *testing.T) {
 
 	for _, want := range []string{
 		"Task #1: Epic Alpha",
-		"└─ #1 [backlog] Epic Alpha (1/2 done)",
+		// #2 and #3 are the counted children of #1 and both stand below it, so
+		// #1 carries no rollup; the hidden child of #2 keeps its counter.
+		"└─ #1 [backlog] Epic Alpha",
 		"├─ #2 [todo] Child One (0/1 done)",
 		"└─ #3 [done] Child Two",
 	} {
@@ -151,7 +153,7 @@ func TestBoard_DetailRelationLinesUnchangedWithoutCursor(t *testing.T) {
 	// #4 is an archived child of #1 and #7 an indirect descendant: one level of
 	// tree must hold neither, and both are present in the fixture so the
 	// assertion can actually fail.
-	for _, unwanted := range []string{"Archived Thing", titleGrandchild} {
+	for _, unwanted := range []string{"Archived Thing", titleGrandchild, "Epic Alpha (1/2 done)"} {
 		if containsStr(v, unwanted) {
 			t.Errorf("detail view of #1 should not list %q:\n%s", unwanted, v)
 		}
@@ -647,6 +649,37 @@ func TestBoard_DetailZeroLevelsShowsOnlyTheOpenTicketAndEllipsis(t *testing.T) {
 	}
 }
 
+func TestBoard_DetailCounterOnlyWhereChildrenAreHidden(t *testing.T) {
+	// One level down from the milestone: its own children stand below it, the
+	// children of the two epics do not. Two levels down nothing is left to
+	// summarize, and every counter is gone.
+	oneLevel := setupHierarchyTreeBoard(t, "Milestone One", 1)
+	wantOne := []string{
+		"  └─ #1 [todo] Milestone One",
+		"     ├─ #2 [done] Epic Two (2/2 done)",
+		"     └─ #3 [backlog] Epic Three (0/1 done)",
+		"     …",
+	}
+	if got := hierarchyBlockLines(t, oneLevel.View()); !reflect.DeepEqual(got, wantOne) {
+		t.Errorf("tree of #1 at one level =\n%s\nwant\n%s",
+			strings.Join(got, "\n"), strings.Join(wantOne, "\n"))
+	}
+
+	twoLevels := setupHierarchyTreeBoard(t, "Milestone One", 2)
+	wantTwo := []string{
+		"  └─ #1 [todo] Milestone One",
+		"     ├─ #2 [done] Epic Two",
+		"     │  ├─ #4 [done] Story Four",
+		"     │  └─ #5 [done] Story Five",
+		"     └─ #3 [backlog] Epic Three",
+		"        └─ #6 [backlog] Story Six",
+	}
+	if got := hierarchyBlockLines(t, twoLevels.View()); !reflect.DeepEqual(got, wantTwo) {
+		t.Errorf("tree of #1 at two levels =\n%s\nwant\n%s",
+			strings.Join(got, "\n"), strings.Join(wantTwo, "\n"))
+	}
+}
+
 func TestBoard_DetailSixLevelsWalksDeepBoard(t *testing.T) {
 	// Depth comes from the parent chain alone, so a six-level budget walks a
 	// seven-task chain to both ends and cuts nothing off.
@@ -654,13 +687,15 @@ func TestBoard_DetailSixLevelsWalksDeepBoard(t *testing.T) {
 
 	got := hierarchyBlockLines(t, b.View())
 
+	// Every task of the chain has exactly one child and the tree shows it, so
+	// no row of it carries a counter.
 	want := []string{
-		"  └─ #1 [todo] Chain Alpha (0/1 done)",
-		"     └─ #2 [todo] Chain Bravo (0/1 done)",
-		"        └─ #3 [todo] Chain Charlie (0/1 done)",
-		"           └─ #4 [todo] Chain Delta (0/1 done)",
-		"              └─ #5 [todo] Chain Echo (0/1 done)",
-		"                 └─ #6 [todo] Chain Foxtrot (0/1 done)",
+		"  └─ #1 [todo] Chain Alpha",
+		"     └─ #2 [todo] Chain Bravo",
+		"        └─ #3 [todo] Chain Charlie",
+		"           └─ #4 [todo] Chain Delta",
+		"              └─ #5 [todo] Chain Echo",
+		"                 └─ #6 [todo] Chain Foxtrot",
 		"                    └─ #7 [todo] Chain Golf",
 	}
 	if !reflect.DeepEqual(got, want) {

@@ -709,3 +709,141 @@ func BenchmarkNewHierarchyIndex(b *testing.B) {
 		}
 	}
 }
+
+// childrenShownSummary renders a whole tree's ChildrenShown flags as one
+// comparable line, one "#id=shown" per row in reading order.
+func childrenShownSummary(tree board.HierarchyTree) string {
+	out := make([]string, 0, len(tree.Rows))
+	for _, r := range tree.Rows {
+		out = append(out, fmt.Sprintf("#%d=%t", r.ID, r.ChildrenShown))
+	}
+	return strings.Join(out, " ")
+}
+
+func TestHierarchyTreeChildrenShownFollowsTheLevelBudget(t *testing.T) {
+	ix := board.NewHierarchyIndex(hierarchyFixture())
+	cfg := config.NewDefault("test")
+
+	tests := []struct {
+		name   string
+		taskID int
+		levels int
+		want   string
+	}{
+		{
+			name: "zero levels hides both children of the open ticket",
+			// #1 counts #2 and #3 and shows neither.
+			taskID: 1, levels: 0,
+			want: "#1=false",
+		},
+		{
+			name:   "one level shows both children, their own stay hidden",
+			taskID: 1, levels: 1,
+			want: "#1=true #2=false #3=false",
+		},
+		{
+			name:   "two levels reach every leaf",
+			taskID: 1, levels: 2,
+			want: "#1=true #2=true #4=true #5=true #3=true #6=true",
+		},
+		{
+			name:   "three levels cannot reach further than two",
+			taskID: 1, levels: 3,
+			want: "#1=true #2=true #4=true #5=true #3=true #6=true",
+		},
+		{
+			name: "an ancestor showing one of two children is incomplete",
+			// The chain shows #4 under #2, never #5.
+			taskID: 4, levels: 1,
+			want: "#2=false #4=true",
+		},
+		{
+			name:   "every ancestor of a chain shows exactly the next row down",
+			taskID: 4, levels: 2,
+			want: "#1=false #2=false #4=true",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := childrenShownSummary(ix.Tree(tc.taskID, cfg, tc.levels)); got != tc.want {
+				t.Errorf("Tree(%d, %d) ChildrenShown = %q, want %q", tc.taskID, tc.levels, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestHierarchyTreeChildrenShownIgnoresArchivedChildren(t *testing.T) {
+	// Archived children are neither counted nor shown, so they must not keep a
+	// row from reporting that the tree holds everything it counts.
+	tasks := []*task.Task{
+		{ID: 1, Title: "Top Node", Status: statusTodo},
+		{ID: 2, Title: "Shown Child", Status: statusTodo, Parent: ptr(1)},
+		{ID: 3, Title: "Gone Child", Status: config.ArchivedStatus, Parent: ptr(1)},
+		{ID: 4, Title: "Deep Node", Status: statusTodo, Parent: ptr(2)},
+		{ID: 5, Title: "Gone Leaf", Status: config.ArchivedStatus, Parent: ptr(4)},
+	}
+	ix := board.NewHierarchyIndex(tasks)
+	cfg := config.NewDefault("test")
+
+	tree := ix.Tree(1, cfg, 2)
+
+	if got, want := childrenShownSummary(tree), "#1=true #2=true #4=true"; got != want {
+		t.Errorf("ChildrenShown = %q, want %q", got, want)
+	}
+	if tree.Rows[2].Total != 0 {
+		t.Errorf("#4 Total = %d, want 0: its only child is archived", tree.Rows[2].Total)
+	}
+}
+
+func TestHierarchyTreeChildShownAsAncestorIsNotShownAsChild(t *testing.T) {
+	// #1 and #2 are each other's parent. The descent skips #2 under #1 because
+	// the cycle already put it on the path, so #1 still has a child the tree
+	// does not show below it — while #2 does show #1 below itself.
+	tasks := []*task.Task{
+		{ID: 1, Title: "A", Status: statusTodo, Parent: ptr(2)},
+		{ID: 2, Title: "B", Status: statusTodo, Parent: ptr(1)},
+	}
+	ix := board.NewHierarchyIndex(tasks)
+	cfg := config.NewDefault("test")
+
+	if got, want := childrenShownSummary(ix.Tree(1, cfg, 6)), "#2=true #1=false"; got != want {
+		t.Errorf("ChildrenShown = %q, want %q", got, want)
+	}
+}
+
+func TestHierarchyTreeLeafShowsEverythingItCounts(t *testing.T) {
+	ix := board.NewHierarchyIndex(hierarchyFixture())
+	cfg := config.NewDefault("test")
+
+	tree := ix.Tree(6, cfg, 0)
+
+	if len(tree.Rows) != 1 || tree.Rows[0].ID != 6 {
+		t.Fatalf("rows = %v, want the leaf alone", treeSummary(tree))
+	}
+	if !tree.Rows[0].ChildrenShown {
+		t.Error("ChildrenShown = false on a row with no counted children, want true")
+	}
+}
+
+func TestHierarchyTreeArchivedOpenTicketIsNoShownChild(t *testing.T) {
+	// Opening an archived task puts it on the chain below its parent, but the
+	// parent does not count it, so it must not count as a child it shows
+	// either — the parent's active child #2 is nowhere on screen.
+	tasks := []*task.Task{
+		{ID: 1, Title: "Parent Node", Status: statusTodo},
+		{ID: 2, Title: "Active Sibling", Status: statusTodo, Parent: ptr(1)},
+		{ID: 3, Title: "Archived Open", Status: config.ArchivedStatus, Parent: ptr(1)},
+	}
+	ix := board.NewHierarchyIndex(tasks)
+	cfg := config.NewDefault("test")
+
+	tree := ix.Tree(3, cfg, 1)
+
+	if got, want := childrenShownSummary(tree), "#1=false #3=true"; got != want {
+		t.Errorf("ChildrenShown = %q, want %q", got, want)
+	}
+	if tree.Rows[0].Total != 1 {
+		t.Errorf("#1 Total = %d, want 1: only the non-archived child counts", tree.Rows[0].Total)
+	}
+}

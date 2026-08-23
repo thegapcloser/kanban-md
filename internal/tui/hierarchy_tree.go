@@ -36,25 +36,35 @@ const (
 	hierarchyCompleteColor = "42"
 )
 
+// statusToken renders a status the way a tree row shows it, brackets included.
+// The renderer needs the token itself to address it as a segment of its row.
+func statusToken(status string) string { return "[" + status + "]" }
+
 // relationLine is one rendered line of a tree row, split into the segments the
 // decoration rules apply to. prefix is indentation plus branch glyph and is
-// never decorated; text starts at the '#'; count is the child counter, which is
-// only set on the line that carries it.
+// never decorated; the text of the row starts at the '#' and is split around
+// status, the only segment that carries a color of its own; count is the child
+// counter, which is only set on the line that carries it.
 type relationLine struct {
 	prefix string
-	text   string
+	head   string
+	status string
+	tail   string
 	count  string
 }
 
+// text returns the row text of the line, from the '#' to the end of the title.
+func (l relationLine) text() string { return l.head + l.status + l.tail }
+
 // plain returns the undecorated full text of the line.
-func (l relationLine) plain() string { return l.prefix + l.text + l.count }
+func (l relationLine) plain() string { return l.prefix + l.text() + l.count }
 
 // relationLineState carries the decorations that apply to one segment.
 type relationLineState struct {
 	dim       bool
 	bold      bool
 	underline bool
-	complete  bool
+	terminal  bool
 }
 
 // relationSegmentStyle composes one style out of the attributes that apply,
@@ -65,7 +75,7 @@ func relationSegmentStyle(state relationLineState) lipgloss.Style {
 	switch {
 	case state.dim:
 		style = style.Foreground(lipgloss.Color(hierarchyDimColor))
-	case state.complete:
+	case state.terminal:
 		style = style.Foreground(lipgloss.Color(hierarchyCompleteColor))
 	}
 	if state.bold {
@@ -132,7 +142,8 @@ func hierarchyIndent(depth, width int) string {
 // end of the last text line or moves onto a continuation line of its own.
 func hierarchyRowLines(row board.HierarchyRow, prefix string, width int) []relationLine {
 	textWidth := hierarchyTextWidth(row.Depth, width)
-	wrapped := wrapTitle(fmt.Sprintf("#%d [%s] %s", row.ID, row.Status, row.Title), textWidth, noLineLimit)
+	token := statusToken(row.Status)
+	wrapped := wrapTitle(fmt.Sprintf("#%d %s %s", row.ID, token, row.Title), textWidth, noLineLimit)
 	continuation := strings.Repeat(" ", lipgloss.Width(prefix))
 
 	lines := make([]relationLine, 0, len(wrapped)+1)
@@ -141,19 +152,35 @@ func hierarchyRowLines(row board.HierarchyRow, prefix string, width int) []relat
 		if i == 0 {
 			linePrefix = prefix
 		}
-		lines = append(lines, relationLine{prefix: linePrefix, text: text})
+		line := relationLine{prefix: linePrefix, head: text}
+		if i == 0 {
+			line.head, line.status, line.tail = splitStatusSegment(text, token)
+		}
+		lines = append(lines, line)
 	}
-	if row.Total == 0 {
+	if row.Total == 0 || row.ChildrenShown {
 		return lines
 	}
 
 	count := fmt.Sprintf(" (%d/%d done)", row.Done, row.Total)
 	last := &lines[len(lines)-1]
-	if lipgloss.Width(last.text)+lipgloss.Width(count) <= textWidth {
+	if lipgloss.Width(last.text())+lipgloss.Width(count) <= textWidth {
 		last.count = count
 		return lines
 	}
 	return append(lines, relationLine{prefix: continuation, count: count})
+}
+
+// splitStatusSegment cuts the status token out of a row's first line so it can
+// be colored on its own. A width narrow enough to wrap inside the token leaves
+// the line in one piece: at that width the row is unreadable either way, and an
+// uncolored status is the harmless half of that.
+func splitStatusSegment(text, token string) (head, status, tail string) {
+	at := strings.Index(text, token)
+	if at < 0 {
+		return text, "", ""
+	}
+	return text[:at], token, text[at+len(token):]
 }
 
 // appendHierarchy renders the hierarchy tree: the ancestor path of the open
@@ -199,7 +226,7 @@ func (b *Board) hierarchyRef(row board.HierarchyRow, prefix string, width int) r
 		taskID:    row.ID,
 		navigable: !row.Current && b.relationVisible(row.ID),
 		current:   row.Current,
-		complete:  row.Total > 0 && row.Done == row.Total,
+		terminal:  b.cfg.IsTerminalStatus(row.Status),
 		lines:     hierarchyRowLines(row, prefix, width),
 	}
 }

@@ -20,7 +20,7 @@ const (
 	sgrUnderline = "4"
 	sgrBold      = "1"
 	sgrDim       = "38;5;241"
-	sgrComplete  = "38;5;42"
+	sgrTerminal  = "38;5;42"
 )
 
 // e2eChildRow is the screen row the child of the open task lands on in the
@@ -109,6 +109,28 @@ func archivedAncestorTasks() []*task.Task {
 	return []*task.Task{
 		{ID: 1, Title: "Archived Root", Status: config.ArchivedStatus, Priority: treePriorityDefault, Updated: mouseTestTime},
 		{ID: 2, Title: "Open Ticket", Status: dragStatusTodo, Priority: "high", Parent: idPtr(1), Updated: mouseTestTime},
+	}
+}
+
+// statusPaletteTasks hangs one child per status under the open task, so one
+// board renders a terminal status next to three non-terminal ones.
+func statusPaletteTasks() []*task.Task {
+	return []*task.Task{
+		{ID: 1, Title: "Palette Root", Status: dragStatusTodo, Priority: treePriorityHigh, Updated: mouseTestTime},
+		{ID: 2, Title: "Working Two", Status: hierarchyStatusInProgress, Priority: "high", Parent: idPtr(1), Updated: mouseTestTime},
+		{ID: 3, Title: "Finished Three", Status: treeStatusDone, Priority: treePriorityDefault, Parent: idPtr(1), Updated: mouseTestTime},
+		{ID: 4, Title: "Reviewed Four", Status: "review", Priority: "low", Parent: idPtr(1), Updated: mouseTestTime},
+	}
+}
+
+// terminalStatusWithHiddenChildTasks puts a terminal status, a counter and a
+// hover on one row: #2 is done, and its own child stays outside a one-level
+// tree, so the row keeps its counter.
+func terminalStatusWithHiddenChildTasks() []*task.Task {
+	return []*task.Task{
+		{ID: 1, Title: "Counted Root", Status: dragStatusTodo, Priority: treePriorityHigh, Updated: mouseTestTime},
+		{ID: 2, Title: "Done Mid", Status: treeStatusDone, Priority: "high", Parent: idPtr(1), Updated: mouseTestTime},
+		{ID: 3, Title: "Hidden Leaf", Status: dragStatusTodo, Priority: "low", Parent: idPtr(2), Updated: mouseTestTime},
 	}
 }
 
@@ -277,7 +299,7 @@ func TestHierarchyRowsWrapWithCountOnLastLine(t *testing.T) {
 	if len(lines) != 2 {
 		t.Fatalf("row wrapped into %d lines, want 2: %+v", len(lines), lines)
 	}
-	if lines[1].text == "" || lines[1].count == "" {
+	if lines[1].text() == "" || lines[1].count == "" {
 		t.Errorf("counter does not sit at the end of the last text line: %+v", lines)
 	}
 	if lines[0].count != "" {
@@ -295,14 +317,14 @@ func TestHierarchyRowsWrapWithCountOnLastLine(t *testing.T) {
 	lines = hierarchyRowLines(narrow, prefix, 30)
 
 	last := lines[len(lines)-1]
-	if last.count == "" || last.text != "" {
+	if last.count == "" || last.text() != "" {
 		t.Errorf("counter was not moved onto a continuation line of its own: %+v", lines)
 	}
 	if last.prefix != "   " {
 		t.Errorf("counter line prefix = %q, want continuation indentation", last.prefix)
 	}
 	for i, l := range lines {
-		if l.text == "" && l.count == "" {
+		if l.text() == "" && l.count == "" {
 			t.Errorf("line %d of %+v is empty", i, lines)
 		}
 	}
@@ -363,25 +385,72 @@ func TestHierarchyUnderlineCoversWholeTextIncludingCount(t *testing.T) {
 	if got := textWithSGR(line, sgrUnderline); got != want {
 		t.Errorf("underlined text = %q, want %q", got, want)
 	}
-	// The counter keeps its own color while the underline stays active over it.
-	// Nesting would end one of the two at the other's reset.
-	if got := textWithSGR(line, sgrComplete); got != " (2/2 done)" {
-		t.Errorf("green text inside the underlined row = %q, want the counter: %q", got, line)
+	if got := textWithSGR(line, sgrTerminal); got != "" {
+		t.Errorf("green text on a row whose status is not terminal = %q, want none: %q", got, line)
 	}
 }
 
-func TestHierarchyCompleteCountIsGreen(t *testing.T) {
+func TestHierarchyUnderlineAndGreenBracketCoexist(t *testing.T) {
+	// The bracket keeps its color while the underline stays active over it, and
+	// the counter after it keeps neither a color of its own nor loses the
+	// underline. Nesting would end one of the two at the other's reset.
 	withANSIProfile(t)
-	b := hierarchyTestBoard(hierarchyFixtureTasks(), 1, 1, 120, 40)
+	b := hierarchyTestBoard(terminalStatusWithHiddenChildTasks(), 1, 1, 120, 40)
+	target := relationTargetFor(t, b, 2)
 
-	complete := rowLineFor(t, b, 2) // 2/2 done
-	if got := textWithSGR(complete, sgrComplete); got != " (2/2 done)" {
-		t.Errorf("green text of the complete row = %q, want the counter alone: %q", got, complete)
+	hoverAt(b, 4, target.rect.y0)
+	line := rowLineFor(t, b, 2)
+
+	want := "#2 [done] Done Mid (0/1 done)"
+	if got := textWithSGR(line, sgrUnderline); got != want {
+		t.Errorf("underlined text = %q, want %q", got, want)
+	}
+	if got := textWithSGR(line, sgrTerminal); got != "[done]" {
+		t.Errorf("green text inside the underlined row = %q, want the status bracket alone: %q", got, line)
+	}
+}
+
+func TestHierarchyTerminalStatusBracketIsGreen(t *testing.T) {
+	withANSIProfile(t)
+	b := hierarchyTestBoard(statusPaletteTasks(), 1, 1, 120, 40)
+
+	terminal := rowLineFor(t, b, 3) // [done]
+	if got := textWithSGR(terminal, sgrTerminal); got != "["+treeStatusDone+"]" {
+		t.Errorf("green text of the terminal row = %q, want the status bracket alone: %q", got, terminal)
 	}
 
-	partial := rowLineFor(t, b, 1) // 1/2 done, the open ticket
-	if strings.Contains(partial, "\x1b["+sgrComplete+"m") {
-		t.Errorf("an incomplete counter is rendered green: %q", partial)
+	// Every other status on the board is not terminal and gets no color at all.
+	for _, id := range []int{1, 2, 4} {
+		line := rowLineFor(t, b, id)
+		if strings.Contains(line, "\x1b["+sgrTerminal+"m") {
+			t.Errorf("row of #%d has a non-terminal status and is rendered green: %q", id, line)
+		}
+	}
+
+	// On a row that carries a counter too, the color stops at the bracket: the
+	// counter inherits dim and bold from its row and nothing else.
+	counted := rowLineFor(t, hierarchyTestBoard(terminalStatusWithHiddenChildTasks(), 1, 1, 120, 40), 2)
+	if !strings.Contains(plainLine(counted), "(0/1 done)") {
+		t.Fatalf("row of #2 = %q, want it to carry a counter", plainLine(counted))
+	}
+	if got := textWithSGR(counted, sgrTerminal); got != "["+treeStatusDone+"]" {
+		t.Errorf("green text of a counted terminal row = %q, want the bracket alone: %q", got, counted)
+	}
+}
+
+func TestHierarchyOpenTicketIsBoldAndGreenAtOnce(t *testing.T) {
+	// bold and green apply to the same row: the open ticket in a terminal
+	// status is both, and the bracket is the segment that carries the color.
+	withANSIProfile(t)
+	b := hierarchyTestBoard(terminalStatusWithHiddenChildTasks(), 2, 1, 120, 40)
+
+	open := rowLineFor(t, b, 2)
+
+	if got := textWithSGR(open, sgrBold); got != "#2 [done] Done Mid" {
+		t.Errorf("bold text of the open ticket = %q, want its whole row text: %q", got, open)
+	}
+	if got := textWithSGR(open, sgrTerminal); got != "["+treeStatusDone+"]" {
+		t.Errorf("green text of the open ticket = %q, want the status bracket: %q", got, open)
 	}
 }
 
@@ -644,7 +713,8 @@ func TestHierarchyDimmedRowKeepsItsDimCounter(t *testing.T) {
 		t.Errorf("dimmed text of the archived ancestor = %q, want %q — the counter has to be dimmed too: %q",
 			got, want, ancestor)
 	}
-	if got := textWithSGR(ancestor, sgrComplete); got != "" {
+	// [archived] is a terminal status, so this row is where dim and green meet.
+	if got := textWithSGR(ancestor, sgrTerminal); got != "" {
 		t.Errorf("green text on a dimmed row = %q, want none: green never wins against dim: %q",
 			got, ancestor)
 	}
@@ -652,11 +722,13 @@ func TestHierarchyDimmedRowKeepsItsDimCounter(t *testing.T) {
 
 func TestHierarchyOpenTicketCounterIsBold(t *testing.T) {
 	withANSIProfile(t)
-	b := hierarchyTestBoard(hierarchyFixtureTasks(), 2, 1, 120, 40)
+	// Zero levels keeps the children of the open ticket off the screen, which
+	// is what keeps its counter on it.
+	b := hierarchyTestBoard(hierarchyFixtureTasks(), 1, 0, 120, 40)
 
-	open := rowLineFor(t, b, 2)
+	open := rowLineFor(t, b, 1)
 
-	want := "#2 [todo] Mid Two (2/2 done)"
+	want := "#1 [backlog] Root One (1/2 done)"
 	if got := textWithSGR(open, sgrBold); got != want {
 		t.Errorf("bold text of the open ticket = %q, want %q — its counter inherits the row decoration: %q",
 			got, want, open)
@@ -738,7 +810,7 @@ func TestHierarchyCounterFitBoundaryIsExact(t *testing.T) {
 	over := fitting
 	over.Title += "a"
 	lines = hierarchyRowLines(over, prefix, width)
-	if len(lines) != 2 || lines[1].text != "" || lines[1].count != count {
+	if len(lines) != 2 || lines[1].text() != "" || lines[1].count != count {
 		t.Errorf("one cell past the fit, the counter did not move onto its own line: %+v", lines)
 	}
 }
