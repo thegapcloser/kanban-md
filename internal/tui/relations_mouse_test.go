@@ -16,9 +16,9 @@ import (
 	"github.com/antopolskiy/kanban-md/internal/task"
 )
 
-// underlineSequence is the SGR code relationHoverStyle emits. Asserting on it
-// instead of on relationHoverStyle.Render keeps the test independent of the
-// style value it is supposed to pin down.
+// underlineSequence is the SGR code an underlined segment emits. Asserting on
+// the sequence instead of on the renderer's own style keeps the test independent
+// of the value it is supposed to pin down.
 const underlineSequence = "\x1b[4m"
 
 // newRelationTestBoard builds a mouse-enabled board sitting in the detail view

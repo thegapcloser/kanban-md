@@ -547,9 +547,11 @@ Set `tui.hide_empty_columns` in `config.yml` to control the default behavior.
 In create/edit dialogs, text fields support cursor-based editing (`←/→`, `Home/End`, `Backspace`, `Delete`).
 
 Opening a task shows a `Hierarchy` block: the open task with its ancestor path
-above it and its descendants below it, as one tree. Archived descendants remain
-hidden in the TUI. A board search controls which cards are visible, but does not
-hide anything from the tree of the selected task.
+above it and its descendants below it, as one tree. A task the tree has nothing
+to show around — no reachable parent, no children, nothing cut off — has no
+block, because its own title is the header right above. Archived descendants
+remain hidden in the TUI. A board search controls which cards are visible, but
+does not hide anything from the tree of the selected task.
 
 Task bodies are rendered as Markdown using the terminal's default foreground
 for the main text, so they remain readable when a terminal switches between
@@ -557,7 +559,20 @@ light and dark themes while the TUI is running.
 
 ### The hierarchy tree
 
-The detail view shows where the open task sits in the board, as one tree:
+The detail view shows where the open task sits in the board, as one tree. At the
+default of one level it reaches one step in each direction, and the `…` says that
+the board goes on below:
+
+```
+Hierarchy
+  └─ #1 [todo] Milestone One (1/2 done)
+     ├─ #2 [done] Epic Two (2/2 done)
+     └─ #3 [backlog] Epic Three (0/1 done)
+     …
+```
+
+The same board with `tui.hierarchy_levels: 2` reaches the stories, and the marker
+is gone because nothing is cut off any more:
 
 ```
 Hierarchy
@@ -615,6 +630,11 @@ Unset means 1 — one level up, one level down. `N` reaches N levels up **and** 
 levels down, cut off wherever the tree ends. Depth comes from the parent chain
 alone, so the setting works the same on a two-level board and on a six-level one;
 there is no maximum and no notion of milestone, epic or story behind it.
+
+`tui.hierarchy_levels` sets the depth of this tree and nothing else. The board
+itself has its own use for the same depth — the `v` level filter and
+`tui.level_colors`, see [Hierarchy levels](#hierarchy-levels) — and the two
+settings are independent.
 
 The `show` command keeps its parent line and children list unchanged. That
 divergence is deliberate: the tree is a navigation aid for the TUI, and the CLI
@@ -696,6 +716,10 @@ the tree at a time. The level comes from the `parent` chain alone — a task wit
 no parent is level 0, its children are level 1, and so on. With the common
 milestone → epic → story layout that makes level 0 the milestones, level 1 the
 epics, and level 2 the stories, without any extra field on the task.
+
+This filter and `tui.level_colors` below act on the board's cards. How deep the
+detail view's tree reaches is a separate setting,
+[`tui.hierarchy_levels`](#how-deep-the-tree-reaches).
 
 Press `v` to cycle the filter: all levels → level 0 only → level 1 only → … →
 back to all levels. The cycle stops at the deepest level actually present on the

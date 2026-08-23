@@ -161,7 +161,7 @@ func hierarchyRowLines(row board.HierarchyRow, prefix string, width int) []relat
 // that cursor, hit test and hover all follow.
 //
 // A one-row tree is left out entirely — a "Hierarchy" section holding only the
-// task whose title stands two lines above says nothing.
+// task whose title is the header of the same view says nothing.
 func (b *Board) appendHierarchy(c *detailContent, tree board.HierarchyTree, width int) {
 	if len(tree.Rows) == 0 || (len(tree.Rows) == 1 && !tree.CutAbove && !tree.CutBelow) {
 		return

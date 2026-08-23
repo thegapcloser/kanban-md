@@ -272,8 +272,8 @@ func (b *Board) detailBackSteps() int {
 
 // relationVisible reports whether a task is reachable at all: it mirrors
 // refreshDetailTask, where only a task in unfilteredTasks survives the next
-// reload. It is a precondition for a navigable row, not the whole rule — a
-// parent row also needs FindParent to have resolved the reference.
+// reload. It is a precondition for a navigable row, not the whole rule — the
+// open task is reachable and is still no link to itself.
 //
 // unfilteredTasks is allTasks minus the archived ones by construction, so an
 // indexed, non-archived task is exactly a member of it.

@@ -19,8 +19,11 @@ import (
 // Invalid parent links are tolerated so a broken board still renders, and one
 // rule covers every walk in this file, upwards and downwards: a parent that no
 // longer exists and a self-reference both count as no parent, matching
-// FindParent, and a chain is cut at its first repeated task. Depths therefore do
-// not depend on the order of tasks, and Tree renders no task twice.
+// FindParent, and a chain is cut at its first repeated task. Tree therefore
+// renders no task twice, and as long as the parent links are acyclic the depths
+// do not depend on the order of tasks. Inside a cycle, and below one, they do:
+// the cut falls where the walk entered the cycle, which is why a cycle's depths
+// are only pinned to the length of the cycle itself.
 type HierarchyIndex struct {
 	tasks    []*task.Task
 	byID     map[int]*task.Task
@@ -91,8 +94,10 @@ type HierarchyRow struct {
 }
 
 // HierarchyTree is the ancestor path of a task, the task itself and its
-// descendants, in reading order. CutAbove and CutBelow report that the tree
-// continues beyond the topmost respectively the deepest shown row.
+// descendants, in reading order. CutAbove and CutBelow report that the level
+// budget cut the tree off above the topmost respectively below the deepest shown
+// row. An ancestor chain that ended at an archived ancestor is not cut off: that
+// row is where the chain ends, so more may exist above it without CutAbove.
 type HierarchyTree struct {
 	Rows     []HierarchyRow
 	CutAbove bool

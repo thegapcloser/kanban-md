@@ -118,3 +118,21 @@ itself look like a link to itself. That makes every direct child navigable —
 including one filtered off the board — and leaves all three non-openable parent
 cases (a dangling reference, a self-reference, and an archived parent) as dimmed,
 inert rows.
+
+## Note added after a later run on the same day
+
+The navigability rule described above did not survive the day. A later change
+replaced the parent line and the children block with a single hierarchy tree, and
+with them that rule:
+
+- Navigable became "indexed and not archived and not the open task"; the
+  `board.FindParent` precondition went with the parent row it qualified.
+- A dangling reference and a self-reference no longer produced a dimmed inert
+  row. They ended the ancestor chain without a row at all, so of the three
+  non-openable parent cases only the archived ancestor was left as a dimmed row.
+- `show` kept its parent line, so a broken reference stayed visible on the CLI.
+
+What that run measured and decided is in
+`docs/research/2026-08-23-tui-hierarchy-tree-and-hierarchy-levels.md`. The
+sections above are left as they were written: they report what held while the
+relation-navigation change was made.

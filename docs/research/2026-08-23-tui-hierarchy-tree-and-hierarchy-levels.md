@@ -38,14 +38,31 @@ fan-out 33, every 13th task archived), building the tree of the widest root with
 magnitude.** 200× fewer comparisons buy a factor of **1.96** in time, because a
 linear scan over 219 pointers is cache-friendly while map lookups and the
 per-row slices of the tree walk are not. The index also allocates more bytes per
-tree than the naive walk does, and pays a further ~10 µs once per load.
+tree than the naive walk does — 38784 B/op against 19648 B/op, because the
+descent materializes a row and a child slice per node — and pays a further
+~10 µs once per load.
 
-The index stays, for two reasons that do not depend on the factor:
+The two arms are not the same work, and the difference is worth naming: the naive
+reference only counts rows. It builds no `HierarchyRow`, walks no ancestor chain
+and answers no `cutBelow`, all of which the indexed arm does. A naive
+implementation of the same feature would therefore be slower than the arm
+measured here, so the bias runs against the index and the factor of 1.96 is a
+lower bound.
 
-- It halves the per-frame cost of the thing that runs per mouse movement, next to
-  a memoized body render measured at 24 µs in the previous round.
-- It carries the by-ID map that `Depths` used to build for itself, so the load
-  path does one pass instead of two.
+The index stays because it halves the per-frame cost of the thing that runs per
+mouse movement, next to the memoized body render the previous round measured at
+31 µs (`2026-08-23-mouse-all-motion-and-relation-navigation.md`). The decision
+rule this run set itself before measuring was that a naive build under 10 µs
+would make the index unnecessary; the naive build measured ~19 µs.
+
+It does **not** save the load path a pass, as the change first claimed, and it
+saves no map either. The base built one by-ID map and walked the tasks once each:
+two passes, two maps counting the depth map. The index builds the by-ID map,
+buckets the children, sorts every bucket, and `Depths` then walks the tasks a
+third time — one pass more, one map more and the sorts. What the shared by-ID map
+avoids is a *fourth* pass and map: an index bolted on top of the old `Depths`
+would have built the by-ID map twice per load. Against the base, the load path
+got more expensive, and the whole gain is on the render side.
 
 A render memo over the built tree was rejected: it would be a second cache key
 with its own staleness for a problem the index solves at the root. The index has
@@ -98,11 +115,13 @@ lines under the widest node of the real board, all saying what the `(x/y done)`
 next to them already says. A marker per side is a statement about the boundary of
 the tree; the node-level information is the counter.
 
-The marker above is set when the level budget cut the chain, not when the chain
-ended at an archived or broken ancestor: those end it because there is nothing
-more to reach. The marker below is set when a node on the deepest shown level
-still has a non-archived child, which also covers `levels: 0` on a task that has
-children.
+The marker above is set when the level budget cut the chain, not when the walk
+reached the end of it: a broken or repeated ancestor has nothing more behind it,
+and an archived one is itself the last shown row, so the end is visible in the
+tree either way. Whether the ancestor beyond the budget is archived makes no
+difference — that row is exactly what got cut off. The marker below is set when a
+node on the deepest shown level still has a non-archived child, which also covers
+`levels: 0` on a task that has children.
 
 ## 5. Three states, one segment
 
