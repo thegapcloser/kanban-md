@@ -565,7 +565,7 @@ the board goes on below:
 
 ```
 Hierarchy
-  └─ #1 [todo] Milestone One (1/2 done)
+  └─ #1 [todo] Milestone One
      ├─ #2 [done] Epic Two (2/2 done)
      └─ #3 [backlog] Epic Three (0/1 done)
      …
@@ -576,25 +576,33 @@ is gone because nothing is cut off any more:
 
 ```
 Hierarchy
-  └─ #1 [todo] Milestone One (1/2 done)
-     ├─ #2 [done] Epic Two (2/2 done)
+  └─ #1 [todo] Milestone One
+     ├─ #2 [done] Epic Two
      │  ├─ #4 [done] Story Four
      │  └─ #5 [done] Story Five
-     └─ #3 [backlog] Epic Three (0/1 done)
+     └─ #3 [backlog] Epic Three
         └─ #6 [backlog] Story Six
 ```
 
-`(x/y done)` stands on every row that has children and counts direct,
-non-archived children in a terminal status over direct, non-archived children —
-the same number `show` reports. It turns green only when every one of them is
-done.
+`(x/y done)` counts direct, non-archived children in a terminal status over
+direct, non-archived children — the same number `show` reports. It stands on a
+row whose counted children the tree does not show: in the first example above,
+one level reaches the epics but not their stories, so each epic carries the
+counter and the milestone does not, because both its children are right below
+it. At two levels nothing is left to summarize and no row carries a counter.
 
-Three states are visible at a glance. Plain text is a row you can open. **Bold**
+Three states say whether a row is a link. Plain text is a row you can open. **Bold**
 text is the task you are looking at; it sits at its place in the tree and is not
 a link to itself. Dimmed text is present but not openable: an archived ancestor,
 which is shown and ends the chain there, and the `…` marker. A parent reference
 that cannot be resolved — a dangling ID or a task pointing at itself — produces
 no row at all; `show` still reports it.
+
+The `[status]` of a finished task is green: the last column before `archived`,
+whatever your board calls it, plus `archived` itself — the same rule `(x/y done)`
+counts by. The bracket stands on every row, so the signal does not depend on
+having children. A dimmed row stays fully dimmed, `[archived]` included: an
+archived ancestor is not finished, it is gone.
 
 A `…` above the tree means the ancestor path continues past the level budget, a
 `…` below it means a task on the deepest shown level still has children. Neither

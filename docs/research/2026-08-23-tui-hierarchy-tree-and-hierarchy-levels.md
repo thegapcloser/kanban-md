@@ -218,3 +218,35 @@ field unset.
 Depth comes from the parent chain alone; the words milestone, epic and story do
 not appear in the walker. There is no maximum, and a negative value is a
 validation error.
+
+## 9. Later change: the green moved to the status bracket (2026-08-23)
+
+A later run in the same day moved the green off the counter and onto the
+`[status]` segment, and left the counter out of every row whose counted children
+the tree shows.
+
+Section 5 above describes the state this report shipped: green on `(x/y done)`
+when every direct child was done. Two properties of that placement decided
+against it. The bracket stands on **every** row, while the counter stands only on
+rows that have children — so the signal reached fewer rows than the statement it
+carried applied to. And two green spans in one row competed: the row-level "this
+task is finished" and the roll-up "its children are finished" are different
+statements, and the bracket is where the first one belongs.
+
+The counter kept its purpose and lost its duplicates. A summary is worth a row
+when it says something the rows below do not; with every counted child standing
+underneath it, `(x/y done)` restated what was already on screen. `HierarchyRow`
+gained `ChildrenShown` for exactly that question, filled from the children the
+walk placed rather than from a second traversal, so the level budget, the cycle
+guard and archived children all fall out of the one rule.
+
+The precedence of section 5 is unchanged: `dim` still beats the colour, so an
+archived ancestor — terminal by `IsTerminalStatus`, since that function counts
+`archived` — stays fully dimmed. `bold` and the colour apply at once, and the
+underline composes over both. The status is a segment for the same reason the
+counter was one: a nested render would end one attribute at the other's reset.
+
+Colour per status was not built. It would need a status-to-colour mapping, and
+with user-defined status names that means a new config option, a migration, a
+fixture and a compat test. `IsTerminalStatus` already reads the user's `statuses`
+list, so the one distinction that carries meaning needed no configuration at all.
