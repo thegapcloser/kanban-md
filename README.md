@@ -500,6 +500,7 @@ Available keys:
 | `classes` | no | Class of service definitions |
 | `tui.title_lines` | yes | Number of title lines shown in TUI cards |
 | `tui.hide_empty_columns` | yes | Hide columns with zero tasks in TUI |
+| `tui.hierarchy_levels` | yes | Levels the TUI detail-view tree shows above and below the open task (unset = 1) |
 | `tui.age_thresholds` | no | TUI age color thresholds |
 | `next_id` | no | Next task ID |
 | `version` | no | Config schema version |
@@ -545,35 +546,79 @@ Set `tui.hide_empty_columns` in `config.yml` to control the default behavior.
 
 In create/edit dialogs, text fields support cursor-based editing (`←/→`, `Home/End`, `Backspace`, `Delete`).
 
-Opening a task with direct children shows the same child list and roll-up as
-`show`. Archived children remain hidden in the TUI. A board search controls
-which cards are visible, but does not hide children from the selected parent's
-detail view.
+Opening a task shows a `Hierarchy` block: the open task with its ancestor path
+above it and its descendants below it, as one tree. Archived descendants remain
+hidden in the TUI. A board search controls which cards are visible, but does not
+hide anything from the tree of the selected task.
 
 Task bodies are rendered as Markdown using the terminal's default foreground
 for the main text, so they remain readable when a terminal switches between
 light and dark themes while the TUI is running.
 
+### The hierarchy tree
+
+The detail view shows where the open task sits in the board, as one tree:
+
+```
+Hierarchy
+  └─ #1 [todo] Milestone One (1/2 done)
+     ├─ #2 [done] Epic Two (2/2 done)
+     │  ├─ #4 [done] Story Four
+     │  └─ #5 [done] Story Five
+     └─ #3 [backlog] Epic Three (0/1 done)
+        └─ #6 [backlog] Story Six
+```
+
+`(x/y done)` stands on every row that has children and counts direct,
+non-archived children in a terminal status over direct, non-archived children —
+the same number `show` reports. It turns green only when every one of them is
+done.
+
+Three states are visible at a glance. Plain text is a row you can open. **Bold**
+text is the task you are looking at; it sits at its place in the tree and is not
+a link to itself. Dimmed text is present but not openable: an archived ancestor,
+which is shown and ends the chain there, and the `…` marker. A parent reference
+that cannot be resolved — a dangling ID or a task pointing at itself — produces
+no row at all; `show` still reports it.
+
+A `…` above the tree means the ancestor path continues past the level budget, a
+`…` below it means there are more descendants. Neither is a link.
+
 ### Relation navigation
 
-The parent and child rows of a detail view are links. `Tab` and `Shift+Tab` walk
-a cursor through them — the parent row first, then the children in ID order —
-and wrap around at both ends. The cursor starts inactive, so a freshly opened
-task still reads as plain text until the first `Tab`. `Enter` opens the task
-under the cursor.
+Every tree row except the open task is a link. `Tab` and `Shift+Tab` walk a
+cursor through them in reading order — ancestors from the outside in, then the
+descendants — and wrap around at both ends. The cursor starts inactive, so a
+freshly opened task still reads as plain text until the first `Tab`. `Enter`
+opens the task under the cursor.
 
 `Esc` and `Backspace` go one step back and restore the screen you left: same
 task, same scroll position, same cursor row. With no history left they close the
 detail view as before. `q` always closes the whole chain at once.
 
-A relation row is only navigable when its task is active (not archived). A
-parent that cannot be resolved — a dangling reference or a task pointing at
-itself — and an archived parent are shown dimmed: they take no cursor, have no
-click target, and do not highlight on hover. Direct children are always
-navigable, even when a search or a level filter hides them from the board.
+A row is only navigable when its task is active (not archived). Descendants are
+always navigable, even when a search or a level filter hides them from the board.
 
 Opening a relation leaves the board alone: search query, level filter and card
 selection are all unchanged when the detail view closes.
+
+### How deep the tree reaches
+
+`tui.hierarchy_levels` is the one knob for both directions:
+
+```bash
+kanban-md config set tui.hierarchy_levels 2   # two levels up and two down
+kanban-md config set tui.hierarchy_levels 0   # only the open task
+```
+
+Unset means 1 — one level up, one level down. `N` reaches N levels up **and** N
+levels down, cut off wherever the tree ends. Depth comes from the parent chain
+alone, so the setting works the same on a two-level board and on a six-level one;
+there is no maximum and no notion of milestone, epic or story behind it.
+
+The `show` command keeps its parent line and children list unchanged. That
+divergence is deliberate: the tree is a navigation aid for the TUI, and the CLI
+output format is a contract for agents that read it.
 
 ### Narrow mode (small terminals)
 
@@ -616,8 +661,8 @@ kanban-md tui --mouse
 | Click `Back` | Go one step back in the relation history, or return to the board |
 | Wheel over a column | Activate that column and move its selection one card |
 | Wheel in a detail view | Scroll the task body three lines |
-| Click a relation line in a detail view | Open that task (single click) |
-| Move the pointer over a relation line | Underline it as a click target |
+| Click a hierarchy row in a detail view | Open that task (single click) |
+| Move the pointer over a hierarchy row | Underline it as a click target |
 | Hold a card, drag to another visible column, and release | Move the task to that status |
 
 The entire rendered destination column is a drop target, including its header,
