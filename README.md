@@ -597,7 +597,9 @@ that cannot be resolved — a dangling ID or a task pointing at itself — produ
 no row at all; `show` still reports it.
 
 A `…` above the tree means the ancestor path continues past the level budget, a
-`…` below it means there are more descendants. Neither is a link.
+`…` below it means a task on the deepest shown level still has children. Neither
+is a link. On a board whose `parent` links form a cycle the lower marker can
+appear although the cycle leaves nothing further to show.
 
 ### Relation navigation
 

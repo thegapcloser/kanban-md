@@ -18,7 +18,11 @@ depth 2, 24 roots, widest fan-out 33 children):
 | One children list (the old detail view) | 202 |
 | Naive tree, `levels: 1`, worst-case node | 6060 (30 rows) |
 | Naive tree, `levels: 2` and deeper, worst-case node | 15150 (75 rows) |
-| Tree through the load-path index | 75 map lookups |
+
+This count was the estimate the plan worked from. It says nothing about the
+indexed variant: the index replaces a scan per row with several map lookups plus
+the row construction itself, and no comparison count was ever taken for it. The
+measurement below is what decided the question.
 
 ### Measured, not extrapolated
 
@@ -34,13 +38,22 @@ fan-out 33, every 13th task archived), building the tree of the widest root with
 | `HierarchyTree/naive` | 19181 / 19184 / 18973 | 19648 | 292 |
 | `NewHierarchyIndex` | 9819 / 9963 / 9831 | 21792 | 349 |
 
-**The operation count overstated the wall-clock advantage by two orders of
-magnitude.** 200× fewer comparisons buy a factor of **1.96** in time, because a
-linear scan over 219 pointers is cache-friendly while map lookups and the
-per-row slices of the tree walk are not. The index also allocates more bytes per
+**The operation count overstated the wall-clock advantage.** The estimate above
+implied a difference of orders of magnitude; measured, the index buys a factor of
+**1.96** in time, because a linear scan over 219 pointers is cache-friendly while
+map lookups and the per-row slices of the tree walk are not. No ratio of
+operation counts is quoted here, because none was measured for the indexed
+variant. The index also allocates more bytes per
 tree than the naive walk does — 38784 B/op against 19648 B/op, because the
 descent materializes a row and a child slice per node — and pays a further
 ~10 µs once per load.
+
+The body of commit `1084281` states that moving `Depths` onto the index "removes
+the second byID build it did on its own". That is wrong and was not corrected in
+place, because the commit is one of ten on an unpushed branch and rewriting the
+series for one clause was judged the more expensive error: the old `Depths` built
+one by-ID map, the head builds one as well, and the load path gained a pass and a
+bucket sort on top. This report is the record; the commit body is superseded.
 
 The two arms are not the same work, and the difference is worth naming: the naive
 reference only counts rows. It builds no `HierarchyRow`, walks no ancestor chain
@@ -102,7 +115,7 @@ its own constant.
 
 Below the point where even level 0 fits, indentation is 0 and the text width is
 clamped to at least 1 — `wrapTitle` with a non-positive width produces empty
-lines. Widths 30, 10 and 3 are tested: no panic, no blank row, finite row count.
+lines. Widths 10 and 3 are tested: no panic, no blank row, finite row count.
 
 ## 4. One `…` per side
 
@@ -110,10 +123,13 @@ A cut-off tree gets exactly one marker per side: above on the indentation of the
 outermost shown ancestor, below on the indentation of the deepest shown level.
 Neither is a cursor stop, a click target or a hover target.
 
-The alternative — one `…` per truncated node — would have produced 33 identical
-lines under the widest node of the real board, all saying what the `(x/y done)`
-next to them already says. A marker per side is a statement about the boundary of
-the tree; the node-level information is the counter.
+The alternative — one `…` per truncated node — was rejected because it repeats
+per node what the `(x/y done)` beside that node already says. An earlier draft of
+this report justified it by a line count instead, claiming 33 duplicate markers
+under the widest node of the real board; that was wrong, because those 33
+children have no children of their own and would have carried no marker at all. A
+marker per side is a statement about the boundary of the tree; the node-level
+information is the counter, and that holds whatever the fan-out is.
 
 The marker above is set when the level budget cut the chain, not when the walk
 reached the end of it: a broken or repeated ancestor has nothing more behind it,
@@ -145,7 +161,8 @@ segment rule builds one `lipgloss.Style` from the attributes that apply and
 renders each segment once. `relationHoverStyle` lost its last user and is gone.
 
 The counter is its own segment, which is what lets it carry a second color inside
-an underlined row: green (`42`, the tone that already means "done and valid" in
+an underlined row: green (`42`, the only tone already in use for a valid state —
+as the background of a valid drop target — rather than for a status, in
 `dropTargetColumnHeaderStyle`) when all direct children are done, and dim when
 the row is dim — green never wins against dim.
 
