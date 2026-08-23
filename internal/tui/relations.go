@@ -6,7 +6,6 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/antopolskiy/kanban-md/internal/board"
 	"github.com/antopolskiy/kanban-md/internal/task"
 )
 
@@ -269,17 +268,6 @@ func (b *Board) detailBackSteps() int {
 		}
 	}
 	return steps
-}
-
-// rebuildHierarchyIndex indexes allTasks and refreshes the depths derived from
-// it. It is the only build site of the index, so every path that changes
-// allTasks outside loadTasks has exactly one call to make.
-//
-// Depths come from all tasks, archived ones included: an archived parent still
-// determines how deep its children sit in the tree.
-func (b *Board) rebuildHierarchyIndex() {
-	b.hierarchyIndex = board.NewHierarchyIndex(b.allTasks)
-	b.taskDepths = b.hierarchyIndex.Depths()
 }
 
 // relationVisible reports whether a task is reachable at all: it mirrors

@@ -252,13 +252,10 @@ func underlinedRows(v string) []int {
 	return rows
 }
 
-// stripANSIRun removes the escape sequences from a rendered view.
-func stripANSIRun(v string) string { return plainLine(v) }
-
 // cursorLine returns the rendered row carrying the cursor gutter, escape
 // sequences removed, or the empty string when no row has it.
 func cursorLine(v string) string {
-	for _, line := range strings.Split(stripANSIRun(v), "\n") {
+	for _, line := range strings.Split(plainLine(v), "\n") {
 		if strings.HasPrefix(line, relationCursorGutter) {
 			return line
 		}
@@ -311,7 +308,7 @@ func TestRelationSelfParentIsInertInEveryPath(t *testing.T) {
 	// A task pointing at itself resolves to no parent, so the chain ends without
 	// a row — which leaves a one-row tree, and that is not shown at all. There
 	// is nothing to click, nothing to tab to and nothing to hover.
-	if strings.Contains(stripANSIRun(b.View()), hierarchyHeading) {
+	if strings.Contains(plainLine(b.View()), hierarchyHeading) {
 		t.Fatalf("a self-referencing parent produced a hierarchy block:\n%q", b.View())
 	}
 	if len(b.layout.relations) != 0 {

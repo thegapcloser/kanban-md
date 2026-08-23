@@ -180,8 +180,10 @@ func ancestorRowsFrom(ix *HierarchyIndex, chain []*task.Task, cfg *config.Config
 }
 
 // descendantRows walks down from a task in preorder, siblings in ascending task
-// ID. baseDepth is the depth of its direct children. onPath carries the tasks
-// already on the rendered path and is what stops a cycle.
+// ID. baseDepth is the depth of its direct children. onPath carries the ancestor
+// rows and the open task, and skipping a child that sits on it is what ends a
+// cycle: a task has at most one parent, so the descent reaches every task at
+// most once and the only path it can run into is the one it started from.
 func (ix *HierarchyIndex) descendantRows(
 	root *task.Task,
 	cfg *config.Config,
@@ -202,10 +204,8 @@ func (ix *HierarchyIndex) descendantRows(
 			}
 		}
 		for i, kid := range shown {
-			onPath[kid.ID] = true
 			rows = append(rows, ix.row(kid, baseDepth+rel, i == len(shown)-1, false, cfg))
 			walk(kid, rel+1)
-			delete(onPath, kid.ID)
 		}
 	}
 	walk(root, 0)

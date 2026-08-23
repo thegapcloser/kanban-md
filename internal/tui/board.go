@@ -1056,6 +1056,17 @@ func (b *Board) loadTasks() {
 	b.clampRow()
 }
 
+// rebuildHierarchyIndex indexes allTasks and refreshes the depths derived from
+// it. It is the only build site of the index, so every path that changes
+// allTasks outside loadTasks has exactly one call to make.
+//
+// Depths come from all tasks, archived ones included: an archived parent still
+// determines how deep its children sit in the tree.
+func (b *Board) rebuildHierarchyIndex() {
+	b.hierarchyIndex = board.NewHierarchyIndex(b.allTasks)
+	b.taskDepths = b.hierarchyIndex.Depths()
+}
+
 // applyBoardFilters narrows active tasks to those passing the search query and
 // the hierarchy level filter.
 func (b *Board) applyBoardFilters(activeTasks []*task.Task) []*task.Task {
