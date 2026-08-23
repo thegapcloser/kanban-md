@@ -566,21 +566,46 @@ func TestHierarchyTreeArchivedChildrenAreNotDescendants(t *testing.T) {
 }
 
 func TestHierarchyIndexDepthsMatchDepthsFunction(t *testing.T) {
-	fixtures := map[string][]*task.Task{
-		"three levels": hierarchyFixture(),
-		"long chain":   chainFixture(20),
-		"broken links": {
-			{ID: 1, Parent: ptr(999)},
-			{ID: 2, Parent: ptr(2)},
-			{ID: 3, Parent: ptr(1)},
+	// The expectations are spelled out instead of taken from board.Depths: the
+	// wrapper is the method, so holding one against the other could not fail.
+	const chainLength = 20
+	chainDepths := make(map[int]int, chainLength)
+	for id := 1; id <= chainLength; id++ {
+		chainDepths[id] = id - 1
+	}
+	fixtures := []struct {
+		name  string
+		tasks []*task.Task
+		want  map[int]int
+	}{
+		{
+			name:  "three levels",
+			tasks: hierarchyFixture(),
+			want:  map[int]int{1: 0, 2: 1, 3: 1, 4: 2, 5: 2, 6: 2},
+		},
+		{
+			name:  "long chain",
+			tasks: chainFixture(chainLength),
+			want:  chainDepths,
+		},
+		{
+			name: "broken links",
+			tasks: []*task.Task{
+				{ID: 1, Parent: ptr(999)},
+				{ID: 2, Parent: ptr(2)},
+				{ID: 3, Parent: ptr(1)},
+			},
+			want: map[int]int{1: 0, 2: 0, 3: 1},
 		},
 	}
-	for name, tasks := range fixtures {
-		t.Run(name, func(t *testing.T) {
-			want := board.Depths(tasks)
-			got := board.NewHierarchyIndex(tasks).Depths()
-			if !reflect.DeepEqual(got, want) {
-				t.Errorf("Depths() = %v, want %v", got, want)
+	for _, tc := range fixtures {
+		t.Run(tc.name, func(t *testing.T) {
+			got := board.NewHierarchyIndex(tc.tasks).Depths()
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("HierarchyIndex.Depths() = %v, want %v", got, tc.want)
+			}
+			if wrapper := board.Depths(tc.tasks); !reflect.DeepEqual(wrapper, tc.want) {
+				t.Errorf("Depths() = %v, want %v", wrapper, tc.want)
 			}
 		})
 	}

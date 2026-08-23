@@ -3,6 +3,7 @@ package tui_test
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -567,5 +568,103 @@ func TestBoard_DetailShowsBodyChangedOnDisk(t *testing.T) {
 	}
 	if containsStr(v, "BODY BEFORE RELOAD") {
 		t.Errorf("stale body survived the reload:\n%s", v)
+	}
+}
+
+// setupDeepChainBoard writes a seven-task parent chain and opens the detail view
+// of its deepest task with a fixed level budget.
+func setupDeepChainBoard(t *testing.T, levels int) *tui.Board {
+	t.Helper()
+
+	names := []string{
+		"Chain Alpha", "Chain Bravo", "Chain Charlie", "Chain Delta",
+		"Chain Echo", "Chain Foxtrot", "Chain Golf",
+	}
+	tasks := make([]*task.Task, 0, len(names))
+	for i, name := range names {
+		tk := &task.Task{
+			ID: i + 1, Title: name, Status: statusTodo,
+			Priority: "medium", Updated: testRefTime,
+		}
+		if i > 0 {
+			parent := i
+			tk.Parent = &parent
+		}
+		tasks = append(tasks, tk)
+	}
+	b, cfg := newFileBoard(t, "Deep Chain Board", tasks)
+	cfg.TUI.HierarchyLevels = &levels
+	return openTaskDetail(t, b, names[len(names)-1])
+}
+
+// hierarchyBlockLines returns the rendered tree block: the lines from the
+// `Hierarchy` heading up to the following blank line, trailing padding removed.
+func hierarchyBlockLines(t *testing.T, v string) []string {
+	t.Helper()
+	lines := strings.Split(stripANSI(v), "\n")
+	start := -1
+	for i, line := range lines {
+		if strings.TrimSpace(line) == "Hierarchy" {
+			start = i
+			break
+		}
+	}
+	if start < 0 {
+		t.Fatalf("no Hierarchy block in the view:\n%s", v)
+	}
+	var out []string
+	for _, line := range lines[start+1:] {
+		if strings.TrimSpace(line) == "" {
+			break
+		}
+		out = append(out, strings.TrimRight(line, " "))
+	}
+	return out
+}
+
+func TestBoard_DetailZeroLevelsShowsOnlyTheOpenTicketAndEllipsis(t *testing.T) {
+	// Zero levels leaves a one-row tree, which is only shown because it is cut
+	// off — below on the milestone, above on the story. Each side alone has to
+	// keep the block on screen.
+	milestone := setupHierarchyTreeBoard(t, "Milestone One", 0)
+	wantMilestone := []string{
+		"  └─ #1 [todo] Milestone One (1/2 done)",
+		"  …",
+	}
+	if got := hierarchyBlockLines(t, milestone.View()); !reflect.DeepEqual(got, wantMilestone) {
+		t.Errorf("tree of #1 at zero levels =\n%s\nwant\n%s",
+			strings.Join(got, "\n"), strings.Join(wantMilestone, "\n"))
+	}
+
+	story := setupHierarchyTreeBoard(t, "Story Four", 0)
+	wantStory := []string{
+		"  …",
+		"  └─ #4 [done] Story Four",
+	}
+	if got := hierarchyBlockLines(t, story.View()); !reflect.DeepEqual(got, wantStory) {
+		t.Errorf("tree of #4 at zero levels =\n%s\nwant\n%s",
+			strings.Join(got, "\n"), strings.Join(wantStory, "\n"))
+	}
+}
+
+func TestBoard_DetailSixLevelsWalksDeepBoard(t *testing.T) {
+	// Depth comes from the parent chain alone, so a six-level budget walks a
+	// seven-task chain to both ends and cuts nothing off.
+	b := setupDeepChainBoard(t, 6)
+
+	got := hierarchyBlockLines(t, b.View())
+
+	want := []string{
+		"  └─ #1 [todo] Chain Alpha (0/1 done)",
+		"     └─ #2 [todo] Chain Bravo (0/1 done)",
+		"        └─ #3 [todo] Chain Charlie (0/1 done)",
+		"           └─ #4 [todo] Chain Delta (0/1 done)",
+		"              └─ #5 [todo] Chain Echo (0/1 done)",
+		"                 └─ #6 [todo] Chain Foxtrot (0/1 done)",
+		"                    └─ #7 [todo] Chain Golf",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("tree of #7 at six levels =\n%s\nwant\n%s",
+			strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
 }

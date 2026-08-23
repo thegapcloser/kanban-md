@@ -517,10 +517,10 @@ func TestDeepTreeTabScrollsThroughEveryStopInReadingOrder(t *testing.T) {
 			t.Fatalf("step %d put the cursor on #%d, want #%d in reading order",
 				i+1, ref.taskID, nav[i].taskID)
 		}
+		// Every block of this fixture fits the window; the block that cannot is
+		// TestHierarchyBlockTallerThanTheWindowIsTopAligned.
 		off, viewHeight := b.detailViewport(len(c.lines))
-		fits := ref.startLine >= off && ref.startLine+ref.lineCount <= off+viewHeight
-		aligned := ref.lineCount > viewHeight && ref.startLine == off
-		if !fits && !aligned {
+		if ref.startLine < off || ref.startLine+ref.lineCount > off+viewHeight {
 			t.Fatalf("step %d left #%d (lines %d..%d) outside the window %d..%d",
 				i+1, ref.taskID, ref.startLine, ref.startLine+ref.lineCount, off, off+viewHeight)
 		}
@@ -617,5 +617,174 @@ func TestE2EChildRowGeometryIsPinned(t *testing.T) {
 	if got != e2eChildRow {
 		t.Errorf("the child row sits on screen row %d, not %d. Update childRow in "+
 			"e2e/tui_mouse_navigation_test.go and e2eChildRow here to %d.", got, e2eChildRow, got)
+	}
+}
+
+// --- Proofs the first round of tests left open ---
+
+// archivedAncestorWithCompleteChildrenTasks makes the archived ancestor's
+// counter complete, so dimming and the "all done" green compete on one row.
+func archivedAncestorWithCompleteChildrenTasks() []*task.Task {
+	tasks := archivedAncestorTasks()
+	tasks[1].Status = treeStatusDone
+	return append(tasks, &task.Task{
+		ID: 3, Title: "Sibling Three", Status: treeStatusDone,
+		Priority: treePriorityDefault, Parent: idPtr(1), Updated: mouseTestTime,
+	})
+}
+
+func TestHierarchyDimmedRowKeepsItsDimCounter(t *testing.T) {
+	withANSIProfile(t)
+	b := hierarchyTestBoard(archivedAncestorWithCompleteChildrenTasks(), 2, 1, 120, 40)
+
+	ancestor := rowLineFor(t, b, 1)
+
+	want := "#1 [archived] Archived Root (2/2 done)"
+	if got := textWithSGR(ancestor, sgrDim); got != want {
+		t.Errorf("dimmed text of the archived ancestor = %q, want %q — the counter has to be dimmed too: %q",
+			got, want, ancestor)
+	}
+	if got := textWithSGR(ancestor, sgrComplete); got != "" {
+		t.Errorf("green text on a dimmed row = %q, want none: green never wins against dim: %q",
+			got, ancestor)
+	}
+}
+
+func TestHierarchyOpenTicketCounterIsBold(t *testing.T) {
+	withANSIProfile(t)
+	b := hierarchyTestBoard(hierarchyFixtureTasks(), 2, 1, 120, 40)
+
+	open := rowLineFor(t, b, 2)
+
+	want := "#2 [todo] Mid Two (2/2 done)"
+	if got := textWithSGR(open, sgrBold); got != want {
+		t.Errorf("bold text of the open ticket = %q, want %q — its counter inherits the row decoration: %q",
+			got, want, open)
+	}
+}
+
+func TestHierarchyHeadingIsBold(t *testing.T) {
+	withANSIProfile(t)
+	b := hierarchyTestBoard(hierarchyFixtureTasks(), 1, 1, 120, 40)
+
+	var heading string
+	for _, line := range strings.Split(b.View(), "\n") {
+		if strings.TrimSpace(plainLine(line)) == hierarchyHeading {
+			heading = line
+			break
+		}
+	}
+	if heading == "" {
+		t.Fatalf("no rendered line holds the %q heading:\n%s", hierarchyHeading, b.View())
+	}
+
+	if got := textWithSGR(heading, sgrBold); got != hierarchyHeading {
+		t.Errorf("bold text of the heading row = %q, want %q: %q", got, hierarchyHeading, heading)
+	}
+}
+
+func TestHierarchyIndentedRowsFitTheTerminalWidth(t *testing.T) {
+	// The available text width is the view width minus the cursor gutter minus
+	// the structure prefix. Dropping the prefix term only shows on an indented
+	// row whose title wraps, which is what this fixture renders.
+	const width = 40
+	tasks := hierarchyFixtureTasks()
+	for _, tk := range tasks {
+		tk.Title = strings.Repeat("Wide title word ", 4)
+	}
+	b := hierarchyTestBoard(tasks, 1, 3, width, 60)
+
+	c := b.detailContent(b.detailTask)
+	view := strings.Split(b.View(), "\n")
+	wrapped := 0
+	for _, ref := range c.relations {
+		if ref.lineCount > 1 {
+			wrapped++
+		}
+		for i := range ref.lineCount {
+			line := plainLine(view[ref.startLine+i])
+			if got := lipgloss.Width(line); got > width {
+				t.Errorf("row of #%d, line %d is %d cells wide at width %d: %q",
+					ref.taskID, i, got, width, line)
+			}
+		}
+	}
+
+	deepest := 0
+	for _, row := range b.hierarchyIndex.Tree(b.detailTask.ID, b.cfg, b.cfg.HierarchyLevels()).Rows {
+		deepest = max(deepest, row.Depth)
+	}
+	if deepest < 2 || wrapped == 0 {
+		t.Fatalf("fixture reached depth %d with %d wrapped rows, want an indented row that wraps", deepest, wrapped)
+	}
+}
+
+func TestHierarchyCounterFitBoundaryIsExact(t *testing.T) {
+	const width = 40
+	prefix := hierarchyBranch(nil, 0, width, true)
+	textWidth := hierarchyTextWidth(0, width)
+	count := " (1/2 done)"
+	head := fmt.Sprintf("#1 [%s] ", dragStatusBacklog)
+
+	fitting := board.HierarchyRow{
+		ID: 1, Status: dragStatusBacklog, Done: 1, Total: 2,
+		Title: strings.Repeat("a", textWidth-lipgloss.Width(count)-lipgloss.Width(head)),
+	}
+	lines := hierarchyRowLines(fitting, prefix, width)
+	if len(lines) != 1 || lines[0].count != count {
+		t.Errorf("a row filling the last cell the counter fits in wrapped anyway: %+v", lines)
+	}
+
+	over := fitting
+	over.Title += "a"
+	lines = hierarchyRowLines(over, prefix, width)
+	if len(lines) != 2 || lines[1].text != "" || lines[1].count != count {
+		t.Errorf("one cell past the fit, the counter did not move onto its own line: %+v", lines)
+	}
+}
+
+func TestHierarchyCursorGutterOnlyOnTheFirstLine(t *testing.T) {
+	tasks := hierarchyFixtureTasks()
+	tasks[1].Title = strings.Repeat("Wrapping child title ", 4)
+	b := hierarchyTestBoard(tasks, 1, 1, 40, 60)
+
+	b.moveDetailCursor(1)
+	c := b.detailContent(b.detailTask)
+	ref := refFor(t, c, 2)
+	if ref.lineCount < 2 {
+		t.Fatalf("row of #2 spans %d lines, want at least 2", ref.lineCount)
+	}
+	view := strings.Split(b.View(), "\n")
+
+	first := plainLine(view[ref.startLine])
+	if !strings.HasPrefix(first, relationCursorGutter) {
+		t.Errorf("first line of the cursor row = %q, want the cursor gutter %q", first, relationCursorGutter)
+	}
+	for i := 1; i < ref.lineCount; i++ {
+		line := plainLine(view[ref.startLine+i])
+		if !strings.HasPrefix(line, relationGutter) || strings.HasPrefix(line, relationCursorGutter) {
+			t.Errorf("continuation line %d of the cursor row = %q, want the plain gutter %q", i, line, relationGutter)
+		}
+	}
+}
+
+func TestHierarchyBlockTallerThanTheWindowIsTopAligned(t *testing.T) {
+	// A block that cannot fit is aligned to its top; aligning it to its bottom
+	// would scroll its first line — the one carrying the ID — out of the window.
+	tasks := hierarchyFixtureTasks()
+	tasks[1].Title = strings.Repeat("Very long child title ", 12)
+	tasks[2].Title = strings.Repeat("Very long sibling title ", 12)
+	b := hierarchyTestBoard(tasks, 1, 1, 40, detailChrome+3)
+
+	_, viewHeight := b.detailViewport(len(b.detailLines(b.detailTask)))
+	ref := refFor(t, b.detailContent(b.detailTask), 2)
+	if ref.lineCount <= viewHeight {
+		t.Fatalf("row of #2 spans %d lines in a window of %d, want a taller block", ref.lineCount, viewHeight)
+	}
+
+	b.moveDetailCursor(1)
+
+	if b.detailScrollOff != ref.startLine {
+		t.Errorf("scroll offset = %d, want the first line of the block, %d", b.detailScrollOff, ref.startLine)
 	}
 }
