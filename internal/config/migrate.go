@@ -160,7 +160,7 @@ func migrateV11ToV12(cfg *Config) error { //nolint:unparam // signature must mat
 
 // migrateV12ToV13 adds tui.hierarchy_levels. The field stays unset, so existing
 // boards keep showing one level above and below the open task.
-func migrateV12ToV13(cfg *Config) error {
+func migrateV12ToV13(cfg *Config) error { //nolint:unparam // signature must match migrations map type
 	cfg.Version = 13
 	return nil
 }
