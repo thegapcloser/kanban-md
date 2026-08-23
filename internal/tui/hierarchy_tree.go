@@ -30,10 +30,10 @@ const (
 
 	// hierarchyDimColor is the foreground of dimStyle. The tree needs the value
 	// itself because it composes one style per segment instead of nesting
-	// renders. hierarchyCompleteColor is the green that already carries the
-	// "done and valid" meaning in dropTargetColumnHeaderStyle.
+	// renders. hierarchyTerminalColor is the green already in use for a valid
+	// state, as the background of dropTargetColumnHeaderStyle.
 	hierarchyDimColor      = "241"
-	hierarchyCompleteColor = "42"
+	hierarchyTerminalColor = "42"
 )
 
 // statusToken renders a status the way a tree row shows it, brackets included.
@@ -76,7 +76,7 @@ func relationSegmentStyle(state relationLineState) lipgloss.Style {
 	case state.dim:
 		style = style.Foreground(lipgloss.Color(hierarchyDimColor))
 	case state.terminal:
-		style = style.Foreground(lipgloss.Color(hierarchyCompleteColor))
+		style = style.Foreground(lipgloss.Color(hierarchyTerminalColor))
 	}
 	if state.bold {
 		style = style.Bold(true)
@@ -158,7 +158,9 @@ func hierarchyRowLines(row board.HierarchyRow, prefix string, width int) []relat
 		}
 		lines = append(lines, line)
 	}
-	if row.Total == 0 || row.ChildrenShown {
+	// A row without counted children shows everything it counts, so
+	// ChildrenShown already covers Total == 0.
+	if row.ChildrenShown {
 		return lines
 	}
 
@@ -226,8 +228,10 @@ func (b *Board) hierarchyRef(row board.HierarchyRow, prefix string, width int) r
 		taskID:    row.ID,
 		navigable: !row.Current && b.relationVisible(row.ID),
 		current:   row.Current,
-		terminal:  b.cfg.IsTerminalStatus(row.Status),
-		lines:     hierarchyRowLines(row, prefix, width),
+		// Archived counts as terminal for the board, but an archived row is not
+		// finished, it is gone — so it never carries the color, current or not.
+		terminal: b.cfg.IsTerminalStatus(row.Status) && !b.cfg.IsArchivedStatus(row.Status),
+		lines:    hierarchyRowLines(row, prefix, width),
 	}
 }
 

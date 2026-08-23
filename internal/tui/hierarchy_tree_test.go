@@ -91,8 +91,7 @@ func hierarchyTestBoard(tasks []*task.Task, detailID, levels, width, height int)
 }
 
 // hierarchyFixtureTasks is the three-level shape the tree tests share: #1 with
-// two children of which one is done, #2 with two done children (a complete
-// counter), #3 with none.
+// two children of which one is done, #2 with two done children, #3 with none.
 func hierarchyFixtureTasks() []*task.Task {
 	return []*task.Task{
 		{ID: 1, Title: "Root One", Status: dragStatusBacklog, Priority: treePriorityHigh, Updated: mouseTestTime},
@@ -691,9 +690,9 @@ func TestE2EChildRowGeometryIsPinned(t *testing.T) {
 
 // --- Proofs the first round of tests left open ---
 
-// archivedAncestorWithCompleteChildrenTasks makes the archived ancestor's
+// archivedAncestorWithDoneChildrenTasks makes the archived ancestor's
 // counter complete, so dimming and the "all done" green compete on one row.
-func archivedAncestorWithCompleteChildrenTasks() []*task.Task {
+func archivedAncestorWithDoneChildrenTasks() []*task.Task {
 	tasks := archivedAncestorTasks()
 	tasks[1].Status = treeStatusDone
 	return append(tasks, &task.Task{
@@ -704,7 +703,7 @@ func archivedAncestorWithCompleteChildrenTasks() []*task.Task {
 
 func TestHierarchyDimmedRowKeepsItsDimCounter(t *testing.T) {
 	withANSIProfile(t)
-	b := hierarchyTestBoard(archivedAncestorWithCompleteChildrenTasks(), 2, 1, 120, 40)
+	b := hierarchyTestBoard(archivedAncestorWithDoneChildrenTasks(), 2, 1, 120, 40)
 
 	ancestor := rowLineFor(t, b, 1)
 
@@ -713,7 +712,8 @@ func TestHierarchyDimmedRowKeepsItsDimCounter(t *testing.T) {
 		t.Errorf("dimmed text of the archived ancestor = %q, want %q — the counter has to be dimmed too: %q",
 			got, want, ancestor)
 	}
-	// [archived] is a terminal status, so this row is where dim and green meet.
+	// Archived is terminal for the board but never carries the color, so this
+	// row proves the absence twice: through that rule and through dim.
 	if got := textWithSGR(ancestor, sgrTerminal); got != "" {
 		t.Errorf("green text on a dimmed row = %q, want none: green never wins against dim: %q",
 			got, ancestor)
@@ -858,5 +858,85 @@ func TestHierarchyBlockTallerThanTheWindowIsTopAligned(t *testing.T) {
 
 	if b.detailScrollOff != ref.startLine {
 		t.Errorf("scroll offset = %d, want the first line of the block, %d", b.detailScrollOff, ref.startLine)
+	}
+}
+
+// archivedOpenTicketTasks opens an archived task itself. The board layer allows
+// this shape; the TUI has no path into it today, which is why the color rule
+// needs a test rather than a reachable case.
+func archivedOpenTicketTasks() []*task.Task {
+	return []*task.Task{
+		{ID: 1, Title: "Archived Open", Status: config.ArchivedStatus, Priority: treePriorityHigh, Updated: mouseTestTime},
+		{ID: 2, Title: "Active Child", Status: dragStatusTodo, Priority: "high", Parent: idPtr(1), Updated: mouseTestTime},
+	}
+}
+
+func TestHierarchyArchivedOpenTicketIsNeverGreen(t *testing.T) {
+	withANSIProfile(t)
+	b := hierarchyTestBoard(archivedOpenTicketTasks(), 1, 1, 120, 40)
+
+	open := rowLineFor(t, b, 1)
+
+	if got := textWithSGR(open, sgrTerminal); got != "" {
+		t.Errorf("green text on the archived open ticket = %q, want none: archived is not finished, it is gone: %q",
+			got, open)
+	}
+	if got := textWithSGR(open, sgrBold); got == "" {
+		t.Errorf("the open ticket lost its bold text: %q", open)
+	}
+}
+
+// statusTokenInTitleTasks gives a task a title that repeats its own status
+// token, so only the real bracket may take the color.
+func statusTokenInTitleTasks() []*task.Task {
+	return []*task.Task{
+		{ID: 1, Title: "Token Root", Status: dragStatusTodo, Priority: treePriorityHigh, Updated: mouseTestTime},
+		{ID: 2, Title: "Rename [done] label", Status: treeStatusDone, Priority: "high", Parent: idPtr(1), Updated: mouseTestTime},
+	}
+}
+
+func TestHierarchyGreenTakesTheStatusBracketNotTheTitle(t *testing.T) {
+	withANSIProfile(t)
+	b := hierarchyTestBoard(statusTokenInTitleTasks(), 1, 1, 120, 40)
+
+	row := rowLineFor(t, b, 2)
+
+	// Both tokens are the same string, so the value alone cannot tell them
+	// apart — the position can. The status bracket is the first one.
+	plain := plainLine(row)
+	if strings.Index(plain, "[done]") == strings.LastIndex(plain, "[done]") {
+		t.Fatalf("fixture no longer repeats the status token, the test proves nothing: %q", plain)
+	}
+	if green := textWithSGR(row, sgrTerminal); green != "[done]" {
+		t.Fatalf("green text = %q, want %q: %q", green, "[done]", row)
+	}
+	// Everything the plain line carries before the green span. With the wrong
+	// bracket colored this holds the status token as well.
+	at := strings.Index(row, sgrTerminal)
+	if at < 0 {
+		t.Fatalf("no green span in the row, nothing to place: %q", row)
+	}
+	before := plainLine(row[:at])
+	if strings.Contains(before, "[done]") {
+		t.Errorf("text before the green span = %q: the color took the title, not the status bracket: %q",
+			before, row)
+	}
+}
+
+func TestHierarchyNarrowWidthLeavesNothingGreen(t *testing.T) {
+	withANSIProfile(t)
+	// Width 8 and 12 break the wrap before the status token, so
+	// splitStatusSegment finds no bracket and takes its fallback. This pins the
+	// resulting behavior — nothing green on those rows — but no mutation of the
+	// fallback was found that turns it red, so read it as a guard against future
+	// change, not as a proof of the current branch.
+	for _, width := range []int{8, 12} {
+		b := hierarchyTestBoard(statusPaletteTasks(), 1, 1, width, 40)
+		for _, line := range treeLines(b) {
+			if got := textWithSGR(line, sgrTerminal); got != "" {
+				t.Errorf("width %d: green text %q on a line too narrow to hold a status bracket: %q",
+					width, got, line)
+			}
+		}
 	}
 }

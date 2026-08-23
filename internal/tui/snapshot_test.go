@@ -98,8 +98,8 @@ func TestSnapshot_DetailRelationCursor(t *testing.T) {
 
 func TestSnapshot_DetailHierarchyTree(t *testing.T) {
 	// Two levels down from the milestone: three indentation levels, the sibling
-	// continuation pipe, a counter on every row that has children and no cut
-	// marker on either side.
+	// continuation pipe, and no cut marker on either side. Every row that has
+	// children shows them all, so no row carries a counter.
 	b := setupHierarchyTreeBoard(t, "Milestone One", 2)
 	assertGolden(t, "detail_hierarchy_tree", b.View())
 }
