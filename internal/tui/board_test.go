@@ -1211,7 +1211,6 @@ func TestBoard_DetailShowsAllMetadata(t *testing.T) {
 		{"Due", "2026-03-15"},
 		{"Estimate", "2h"},
 		{"Class", "expedite"},
-		{"Parent", "↑ Parent  #42"},
 		{"DependsOn", "#10"},
 		{"DependsOn2", "#20"},
 		{"ClaimedBy", "agent-1"},
@@ -1229,6 +1228,12 @@ func TestBoard_DetailShowsAllMetadata(t *testing.T) {
 	}
 	if containsStr(v, "Parent:") {
 		t.Errorf("detail view should replace the old parent metadata field:\n%s", v)
+	}
+	// The parent reference points at #42, which does not exist. An unresolvable
+	// reference produces no tree row, which leaves a one-row tree, which is not
+	// shown at all.
+	if containsStr(v, "Hierarchy") {
+		t.Errorf("a dangling parent reference produced a hierarchy block:\n%s", v)
 	}
 }
 
@@ -1272,14 +1277,14 @@ func setupParentChildrenBoard(t *testing.T) *tui.Board {
 	return b
 }
 
-func TestBoard_DetailShowsResolvedParentAsUpwardRelation(t *testing.T) {
+func TestBoard_DetailShowsResolvedParentAsAncestorRow(t *testing.T) {
 	b := setupParentChildrenBoard(t)
 	b = sendKey(b, "j") // select task #2 beneath its parent in backlog
 	b = sendSpecialKey(b, tea.KeyEnter)
 	v := b.View()
 
-	if !containsStr(v, "↑ Parent  #1 [backlog] Epic Alpha") {
-		t.Errorf("detail view missing resolved parent relation:\n%s", v)
+	if !containsStr(v, "└─ #1 [backlog] Epic Alpha (1/2 done)") {
+		t.Errorf("detail view missing the resolved parent as an ancestor row:\n%s", v)
 	}
 	if containsStr(v, "Parent:") {
 		t.Errorf("detail view should replace the old parent metadata field:\n%s", v)
@@ -1297,7 +1302,7 @@ func TestBoard_DetailCanResolveArchivedParent(t *testing.T) {
 	b = sendSpecialKey(b, tea.KeyEnter)
 	v := b.View()
 
-	if !containsStr(v, "↑ Parent  #4 [archived] Archived child") {
+	if !containsStr(v, "└─ #4 [archived] Archived child") {
 		t.Errorf("detail view should resolve an archived parent:\n%s", v)
 	}
 }
@@ -1308,8 +1313,8 @@ func TestBoard_DetailShowsDirectActiveChildrenAndRollup(t *testing.T) {
 	v := b.View()
 
 	for _, want := range []string{
-		"Children (1/2 done)",
-		"├─ #2 [backlog] Backlog child",
+		"└─ #1 [backlog] Epic Alpha (1/2 done)",
+		"├─ #2 [backlog] Backlog child (0/1 done)",
 		"└─ #3 [done] Done child",
 	} {
 		if !containsStr(v, want) {

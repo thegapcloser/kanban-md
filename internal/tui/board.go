@@ -1506,11 +1506,6 @@ var (
 
 	dimStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 
-	// relationHoverStyle marks the relation row under the mouse pointer.
-	// Underline is the only decoration left: foreground and background of a
-	// relation row are already taken by the dim and status colors.
-	relationHoverStyle = lipgloss.NewStyle().Underline(true)
-
 	// Narrow-mode tab strip styles (no padding — tab hit rects are computed
 	// from rendered label widths).
 	narrowTabStyle = lipgloss.NewStyle().

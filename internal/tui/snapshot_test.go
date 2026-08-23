@@ -96,6 +96,21 @@ func TestSnapshot_DetailRelationCursor(t *testing.T) {
 	assertGolden(t, "detail_relation_cursor", b.View())
 }
 
+func TestSnapshot_DetailHierarchyTree(t *testing.T) {
+	// Two levels down from the milestone: three indentation levels, the sibling
+	// continuation pipe, a counter on every row that has children and no cut
+	// marker on either side.
+	b := setupHierarchyTreeBoard(t, "Milestone One", 2)
+	assertGolden(t, "detail_hierarchy_tree", b.View())
+}
+
+func TestSnapshot_DetailHierarchyAncestors(t *testing.T) {
+	// One level around a story: the ancestor chain, the cut marker above it and
+	// the open ticket at its place in the tree.
+	b := setupHierarchyTreeBoard(t, "Story Four", 1)
+	assertGolden(t, "detail_hierarchy_ancestors", b.View())
+}
+
 func TestSnapshot_MouseDetailBackAffordance(t *testing.T) {
 	b, _ := setupTestBoard(t)
 	b.SetMouseEnabled(true)

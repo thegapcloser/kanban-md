@@ -19,29 +19,24 @@ const (
 	relationCursorGutter = "> "
 )
 
-// relationKind distinguishes the two relation directions rendered in the
-// detail view.
-type relationKind int
-
-const (
-	relationParent relationKind = iota
-	relationChild
-)
-
-// relationRef addresses one relation row inside detailContent.lines. The row
-// can span several lines because wrapTitle breaks long titles, so the block is
-// described as a half-open range [startLine, startLine+lineCount).
+// relationRef addresses one row of the hierarchy tree inside
+// detailContent.lines. The row can span several lines because wrapTitle breaks
+// long titles, so the block is described as a half-open range
+// [startLine, startLine+lineCount). lines carries the same content split into
+// the segments the decoration rules apply to.
 type relationRef struct {
 	taskID    int
-	kind      relationKind
 	startLine int
 	lineCount int
 	navigable bool
+	current   bool
+	complete  bool
+	lines     []relationLine
 }
 
-// detailContent is the fully built detail-view body plus the relation blocks
-// inside it, in render order: the parent row first, then every child row in
-// ascending task-ID order.
+// detailContent is the fully built detail-view body plus the tree rows inside
+// it, in reading order: the ancestors of the open task from the outside in, the
+// open task, then its descendants in preorder.
 type detailContent struct {
 	lines     []string
 	relations []relationRef
@@ -146,7 +141,7 @@ func (b *Board) renderDetailBody(c detailContent, off, viewHeight int) string {
 			out = append(out, c.lines[i])
 			continue
 		}
-		out = append(out, decorateRelationLine(ref, c.lines[i], relationDecor{
+		out = append(out, decorateRelationLine(ref, ref.lines[i-ref.startLine], relationDecor{
 			firstLine: i == ref.startLine,
 			onCursor:  hasCursor && ref.startLine == cursorRef.startLine,
 			onHover:   hasHover && ref.startLine == hoverRef.startLine,
@@ -220,19 +215,29 @@ type relationDecor struct {
 	onHover   bool
 }
 
-// decorateRelationLine prefixes a relation line with its gutter, marks the
-// cursor row, dims a row that cannot be opened and underlines a hovered row.
-func decorateRelationLine(ref relationRef, line string, decor relationDecor) string {
+// decorateRelationLine prefixes a tree line with its gutter and decorates its
+// text: bold for the open task, dim for a row that cannot be opened, underline
+// for the hovered row and green for a complete counter. Gutter, indentation and
+// branch glyph stay undecorated — the click target is the node, not the frame
+// around it.
+func decorateRelationLine(ref relationRef, line relationLine, decor relationDecor) string {
 	gutter := relationGutter
 	if decor.onCursor && decor.firstLine {
 		gutter = relationCursorGutter
 	}
-	out := gutter + line
-	if !ref.navigable {
-		out = dimStyle.Render(out)
+	state := relationLineState{
+		dim:       !ref.navigable && !ref.current,
+		bold:      ref.current,
+		underline: decor.onHover,
 	}
-	if decor.onHover {
-		out = relationHoverStyle.Render(out)
+	out := gutter + line.prefix
+	if line.text != "" {
+		out += relationSegmentStyle(state).Render(line.text)
+	}
+	if line.count != "" {
+		countState := state
+		countState.complete = ref.complete
+		out += relationSegmentStyle(countState).Render(line.count)
 	}
 	return out
 }
@@ -289,13 +294,16 @@ func (b *Board) relationVisible(taskID int) bool {
 	return t != nil && !b.cfg.IsArchivedStatus(t.Status)
 }
 
-// detailContent resolves a task's relations and builds its detail-view content.
-// The parent comes from allTasks so an archived parent still shows, the active
-// children come from unfilteredTasks — the same sources the view read before.
+// detailContent builds a task's detail-view content around its hierarchy tree.
+// The tree comes from the index over allTasks, so an archived ancestor still
+// resolves, while archived descendants are filtered out on the way down — the
+// same two sources the view read before.
 func (b *Board) detailContent(t *task.Task) detailContent {
-	parent := board.FindParent(b.allTasks, t)
-	children := board.SummarizeChildren(b.unfilteredTasks, t.ID, b.cfg, false)
-	return b.buildDetailContent(t, parent, children, b.width)
+	tree := b.hierarchyIndex.Tree(t.ID, b.cfg, b.cfg.HierarchyLevels())
+	c := detailContent{lines: detailHeadLines(t, b.width)}
+	b.appendHierarchy(&c, tree, b.width)
+	b.appendDetailBody(&c, t, b.width)
+	return c
 }
 
 // detailLines returns just the rendered lines of a task's detail content.
@@ -313,21 +321,6 @@ func navigableRelations(c detailContent) []relationRef {
 		}
 	}
 	return nav
-}
-
-// buildDetailContent renders the detail view of a task and records where its
-// relation rows landed.
-func (b *Board) buildDetailContent(
-	t *task.Task,
-	parent *board.ParentTask,
-	children board.ChildSummary,
-	width int,
-) detailContent {
-	c := detailContent{lines: detailHeadLines(t, width)}
-	b.appendParentRelation(&c, t, parent, width)
-	b.appendChildRelations(&c, children, width)
-	b.appendDetailBody(&c, t, width)
-	return c
 }
 
 // detailHeadLines renders everything above the relation rows: header,
@@ -358,59 +351,6 @@ func detailHeadLines(t *task.Task, width int) []string {
 	return lines
 }
 
-// appendParentRelation adds the upward relation row, if the task has a parent
-// reference at all.
-func (b *Board) appendParentRelation(c *detailContent, t *task.Task, parent *board.ParentTask, width int) {
-	if t.Parent == nil {
-		return
-	}
-	c.lines = append(c.lines, "")
-	// Navigability follows the resolution result, not the stored parent ID.
-	// FindParent rejects a dangling reference and a self-reference alike, and a
-	// row without a resolved parent has nothing to open — judging the stored ID
-	// would turn a task pointing at itself into a link to itself.
-	appendRelationBlock(c, parentRelationLine(*t.Parent, parent), relationRef{
-		taskID:    *t.Parent,
-		kind:      relationParent,
-		navigable: parent != nil && b.relationVisible(parent.ID),
-	}, width)
-}
-
-// appendChildRelations adds the children heading and one relation row per
-// direct child. The heading itself is not a relation.
-func (b *Board) appendChildRelations(c *detailContent, children board.ChildSummary, width int) {
-	if children.Total() == 0 {
-		return
-	}
-	c.lines = append(c.lines, "")
-	heading := fmt.Sprintf("Children (%d/%d done)", children.Done, children.Total())
-	c.lines = append(c.lines, lipgloss.NewStyle().Bold(true).Render(heading))
-	for i, child := range children.Children {
-		branch := "├─"
-		if i == len(children.Children)-1 {
-			branch = "└─"
-		}
-		line := fmt.Sprintf("%s #%d [%s] %s", branch, child.ID, child.Status, child.Title)
-		appendRelationBlock(c, line, relationRef{
-			taskID:    child.ID,
-			kind:      relationChild,
-			navigable: b.relationVisible(child.ID),
-		}, width)
-	}
-}
-
-// appendRelationBlock wraps one relation row and records its position. The
-// caller supplies taskID, kind and navigable; startLine and lineCount come from
-// the wrap. The gutter is reserved here and drawn at render time, so the row
-// wraps two cells narrower than the rest of the view.
-func appendRelationBlock(c *detailContent, line string, ref relationRef, width int) {
-	wrapped := wrapTitle(line, width-relationGutterWidth, noLineLimit)
-	ref.startLine = len(c.lines)
-	ref.lineCount = len(wrapped)
-	c.relations = append(c.relations, ref)
-	c.lines = append(c.lines, wrapped...)
-}
-
 // appendDetailBody renders the markdown body below the relations.
 func (b *Board) appendDetailBody(c *detailContent, t *task.Task, width int) {
 	if t.Body == "" {
@@ -419,13 +359,6 @@ func (b *Board) appendDetailBody(c *detailContent, t *task.Task, width int) {
 	c.lines = append(c.lines, "")
 	rendered := b.renderTaskBody(unescapeBody(t.Body), width)
 	c.lines = append(c.lines, strings.Split(rendered, "\n")...)
-}
-
-func parentRelationLine(parentID int, parent *board.ParentTask) string {
-	if parent == nil {
-		return fmt.Sprintf("↑ Parent  #%d", parentID)
-	}
-	return fmt.Sprintf("↑ Parent  #%d [%s] %s", parent.ID, parent.Status, parent.Title)
 }
 
 // moveDetailCursor advances the relation cursor. The first press activates it —

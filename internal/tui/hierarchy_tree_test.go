@@ -1,0 +1,621 @@
+package tui
+
+import (
+	"fmt"
+	"strings"
+	"testing"
+	"time"
+
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+
+	"github.com/antopolskiy/kanban-md/internal/board"
+	"github.com/antopolskiy/kanban-md/internal/config"
+	"github.com/antopolskiy/kanban-md/internal/task"
+)
+
+// SGR parameters the three row states are proven by. Asserting on the sequence
+// and not on the style variable keeps the test independent of the value it pins.
+const (
+	sgrUnderline = "4"
+	sgrBold      = "1"
+	sgrDim       = "38;5;241"
+	sgrComplete  = "38;5;42"
+)
+
+// e2eChildRow is the screen row the child of the open task lands on in the
+// E2E fixture shape. e2e/tui_mouse_navigation_test.go clicks exactly there, and
+// this fast unit test is what reports a new number when the geometry moves.
+const e2eChildRow = 11
+
+// Status and priority names used by the tree fixtures.
+const (
+	treeStatusDone      = "done"
+	treePriorityHigh    = "critical"
+	treePriorityDefault = "medium"
+)
+
+func idPtr(i int) *int { return &i }
+
+// plainLine strips the escape sequences from a rendered line. The external test
+// package has its own helper; this one keeps hierarchy assertions inside the
+// package that owns the renderer.
+func plainLine(s string) string {
+	var out strings.Builder
+	for i := 0; i < len(s); {
+		if strings.HasPrefix(s[i:], "\x1b[") {
+			end := strings.IndexByte(s[i:], 'm')
+			if end < 0 {
+				break
+			}
+			i += end + 1
+			continue
+		}
+		out.WriteByte(s[i])
+		i++
+	}
+	return out.String()
+}
+
+// hierarchyTestBoard builds a mouse-enabled board sitting in the detail view of
+// one task, with a fixed level budget. A struct literal skips loadTasks, so the
+// index is built by hand.
+func hierarchyTestBoard(tasks []*task.Task, detailID, levels, width, height int) *Board {
+	cfg := config.NewDefault("Hierarchy Test")
+	cfg.TUI.HierarchyLevels = &levels
+	var active []*task.Task
+	for _, tk := range tasks {
+		if !cfg.IsArchivedStatus(tk.Status) {
+			active = append(active, tk)
+		}
+	}
+	b := &Board{
+		cfg:             cfg,
+		allTasks:        tasks,
+		tasks:           active,
+		unfilteredTasks: active,
+		columns:         columnsForTasks(cfg.BoardStatuses(), active),
+		width:           width,
+		height:          height,
+		view:            viewDetail,
+		now:             func() time.Time { return mouseTestTime.Add(time.Hour) },
+		mouseNow:        func() time.Time { return mouseTestTime },
+		mouseEnabled:    true,
+		sortField:       sortFields[0],
+		sortReverse:     true,
+	}
+	b.rebuildHierarchyIndex()
+	b.detailTask = b.hierarchyIndex.Task(detailID)
+	_ = b.View()
+	return b
+}
+
+// hierarchyFixtureTasks is the three-level shape the tree tests share: #1 with
+// two children of which one is done, #2 with two done children (a complete
+// counter), #3 with none.
+func hierarchyFixtureTasks() []*task.Task {
+	return []*task.Task{
+		{ID: 1, Title: "Root One", Status: dragStatusBacklog, Priority: treePriorityHigh, Updated: mouseTestTime},
+		{ID: 2, Title: "Mid Two", Status: dragStatusTodo, Priority: "high", Parent: idPtr(1), Updated: mouseTestTime},
+		{ID: 3, Title: "Mid Three", Status: treeStatusDone, Priority: treePriorityDefault, Parent: idPtr(1), Updated: mouseTestTime},
+		{ID: 4, Title: "Leaf Four", Status: treeStatusDone, Priority: "low", Parent: idPtr(2), Updated: mouseTestTime},
+		{ID: 5, Title: "Leaf Five", Status: treeStatusDone, Priority: "low", Parent: idPtr(2), Updated: mouseTestTime},
+	}
+}
+
+// archivedAncestorTasks puts the open task under an archived parent, which the
+// tree shows dimmed as the last row of the chain.
+func archivedAncestorTasks() []*task.Task {
+	return []*task.Task{
+		{ID: 1, Title: "Archived Root", Status: config.ArchivedStatus, Priority: treePriorityDefault, Updated: mouseTestTime},
+		{ID: 2, Title: "Open Ticket", Status: dragStatusTodo, Priority: "high", Parent: idPtr(1), Updated: mouseTestTime},
+	}
+}
+
+// treeLines returns the plain content lines of the tree block, without the
+// heading and without the gutter the renderer adds.
+func treeLines(b *Board) []string {
+	c := b.detailContent(b.detailTask)
+	var out []string
+	for _, ref := range c.relations {
+		for i := range ref.lineCount {
+			out = append(out, c.lines[ref.startLine+i])
+		}
+	}
+	return out
+}
+
+// rowLineFor returns the rendered screen line of a relation row's first line.
+func rowLineFor(t *testing.T, b *Board, id int) string {
+	t.Helper()
+	c := b.detailContent(b.detailTask)
+	for _, ref := range c.relations {
+		if ref.taskID != id {
+			continue
+		}
+		lines := strings.Split(b.View(), "\n")
+		if ref.startLine >= len(lines) {
+			t.Fatalf("row of #%d is at line %d, beyond the %d rendered lines", id, ref.startLine, len(lines))
+		}
+		return lines[ref.startLine]
+	}
+	t.Fatalf("no relation row for #%d", id)
+	return ""
+}
+
+// textWithSGR walks a rendered line and returns the plain text that was emitted
+// while the given SGR parameter was active. It tolerates styles emitted per
+// rune, so the assertion holds regardless of how the renderer batches escapes.
+func textWithSGR(line, param string) string {
+	var out strings.Builder
+	active := map[string]bool{}
+	for i := 0; i < len(line); {
+		if strings.HasPrefix(line[i:], "\x1b[") {
+			end := strings.IndexByte(line[i:], 'm')
+			if end < 0 {
+				break
+			}
+			applySGR(active, line[i+2:i+end])
+			i += end + 1
+			continue
+		}
+		if active[param] {
+			out.WriteByte(line[i])
+		}
+		i++
+	}
+	return out.String()
+}
+
+// applySGR folds one escape sequence body into the set of active parameters.
+// Extended color parameters span several tokens and stay one entry, so "4" from
+// "38;5;42;4" is still recognized as the underline it is.
+func applySGR(active map[string]bool, body string) {
+	tokens := strings.Split(body, ";")
+	for i := 0; i < len(tokens); i++ {
+		switch {
+		case tokens[i] == "0" || tokens[i] == "":
+			for k := range active {
+				delete(active, k)
+			}
+		case (tokens[i] == "38" || tokens[i] == "48") && i+2 < len(tokens) && tokens[i+1] == "5":
+			active[strings.Join(tokens[i:i+3], ";")] = true
+			i += 2
+		case (tokens[i] == "38" || tokens[i] == "48") && i+4 < len(tokens) && tokens[i+1] == "2":
+			active[strings.Join(tokens[i:i+5], ";")] = true
+			i += 4
+		default:
+			active[tokens[i]] = true
+		}
+	}
+}
+
+// --- T6: structure, wrapping, capping, counter position, ellipsis ---
+
+func TestHierarchyBranchPrefixes(t *testing.T) {
+	const wide = 120
+	tests := []struct {
+		name        string
+		lastAtDepth []bool
+		depth       int
+		width       int
+		last        bool
+		want        string
+	}{
+		{name: "root, last", depth: 0, width: wide, last: true, want: "└─ "},
+		{name: "root, more siblings", depth: 0, width: wide, want: "├─ "},
+		{
+			name: "under a last parent", lastAtDepth: []bool{true}, depth: 1, width: wide,
+			want: "   ├─ ",
+		},
+		{
+			name: "under a parent with siblings", lastAtDepth: []bool{false}, depth: 1, width: wide,
+			want: "│  ├─ ",
+		},
+		{
+			name: "two continuations", lastAtDepth: []bool{false, false}, depth: 2, width: wide,
+			last: true, want: "│  │  └─ ",
+		},
+		{
+			name: "mixed continuations", lastAtDepth: []bool{true, false}, depth: 2, width: wide,
+			last: true, want: "   │  └─ ",
+		},
+		{
+			name:  "indentation stops growing at width 30",
+			depth: 3, width: 30, last: true, lastAtDepth: []bool{false, false, false},
+			want: "│  └─ ",
+		},
+		{
+			name:  "no indentation left at width 10",
+			depth: 5, width: 10, last: true, lastAtDepth: []bool{false, false, false, false, false},
+			want: "└─ ",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := hierarchyBranch(tc.lastAtDepth, tc.depth, tc.width, tc.last)
+			if got != tc.want {
+				t.Errorf("hierarchyBranch() = %q, want %q", got, tc.want)
+			}
+			if want := hierarchyPrefixWidth(tc.depth, tc.width); lipgloss.Width(got) != want {
+				t.Errorf("prefix width = %d, want %d from hierarchyPrefixWidth", lipgloss.Width(got), want)
+			}
+		})
+	}
+}
+
+func TestHierarchyPrefixWidthStopsGrowing(t *testing.T) {
+	for _, width := range []int{120, 40, 30, 10, 3} {
+		for depth := range 7 {
+			prefix := hierarchyPrefixWidth(depth, width)
+			text := hierarchyTextWidth(depth, width)
+
+			if text < 1 {
+				t.Errorf("width %d depth %d: text width = %d, want at least 1", width, depth, text)
+			}
+			if prefix > hierarchyBranchWidth && text < minHierarchyTextWidth {
+				t.Errorf("width %d depth %d: indented to %d cells but left only %d for text, want at least %d",
+					width, depth, prefix, text, minHierarchyTextWidth)
+			}
+			if depth > 0 && prefix < hierarchyPrefixWidth(depth-1, width) {
+				t.Errorf("width %d: prefix shrank from depth %d to %d", width, depth-1, depth)
+			}
+		}
+	}
+}
+
+func TestHierarchyRowsWrapWithCountOnLastLine(t *testing.T) {
+	row := board.HierarchyRow{
+		ID: 1, Status: dragStatusBacklog, Done: 1, Total: 2,
+		Title: "Alpha Beta Gamma Delta Epsilon Zeta Eta",
+	}
+	prefix := hierarchyBranch(nil, 0, 40, true)
+
+	lines := hierarchyRowLines(row, prefix, 40)
+
+	if len(lines) != 2 {
+		t.Fatalf("row wrapped into %d lines, want 2: %+v", len(lines), lines)
+	}
+	if lines[1].text == "" || lines[1].count == "" {
+		t.Errorf("counter does not sit at the end of the last text line: %+v", lines)
+	}
+	if lines[0].count != "" {
+		t.Errorf("counter appears on the first line as well: %+v", lines)
+	}
+	if lines[1].prefix != "   " {
+		t.Errorf("continuation prefix = %q, want three cells of indentation", lines[1].prefix)
+	}
+
+	narrow := board.HierarchyRow{
+		ID: 1, Status: dragStatusBacklog, Done: 1, Total: 2,
+		Title: "Alpha Beta Gamma Delta Epsilonzz",
+	}
+
+	lines = hierarchyRowLines(narrow, prefix, 30)
+
+	last := lines[len(lines)-1]
+	if last.count == "" || last.text != "" {
+		t.Errorf("counter was not moved onto a continuation line of its own: %+v", lines)
+	}
+	if last.prefix != "   " {
+		t.Errorf("counter line prefix = %q, want continuation indentation", last.prefix)
+	}
+	for i, l := range lines {
+		if l.text == "" && l.count == "" {
+			t.Errorf("line %d of %+v is empty", i, lines)
+		}
+	}
+}
+
+func TestHierarchyDegenerateWidthsDoNotPanicOrEmpty(t *testing.T) {
+	for _, width := range []int{10, 3} {
+		b := hierarchyTestBoard(hierarchyFixtureTasks(), 1, 3, width, 40)
+
+		view := b.View()
+		if view == "" {
+			t.Fatalf("width %d rendered nothing", width)
+		}
+		lines := treeLines(b)
+		if len(lines) == 0 {
+			t.Fatalf("width %d rendered no tree rows", width)
+		}
+		if len(lines) > 100 {
+			t.Fatalf("width %d rendered %d tree rows, want a finite tree", width, len(lines))
+		}
+		for i, line := range lines {
+			if strings.TrimSpace(plainLine(line)) == "" {
+				t.Errorf("width %d: tree line %d is blank: %q", width, i, line)
+			}
+		}
+	}
+}
+
+// --- T7: decoration as a segment rule ---
+
+func TestHierarchyUnderlineStartsAtTheHash(t *testing.T) {
+	withANSIProfile(t)
+	b := hierarchyTestBoard(hierarchyFixtureTasks(), 1, 1, 120, 40)
+	target := relationTargetFor(t, b, 2)
+
+	hoverAt(b, 4, target.rect.y0)
+	line := rowLineFor(t, b, 2)
+
+	prefix := relationGutter + hierarchyBranch([]bool{true}, 1, 120, false)
+	if got := strings.Index(line, "\x1b["); got != len(prefix) {
+		t.Errorf("first escape sequence at byte %d, want %d — the end of %q. Line: %q",
+			got, len(prefix), prefix, line)
+	}
+	if got := underlinedRows(b.View()); len(got) != 1 || got[0] != target.rect.y0 {
+		t.Errorf("underlined rows = %v, want exactly row %d", got, target.rect.y0)
+	}
+}
+
+func TestHierarchyUnderlineCoversWholeTextIncludingCount(t *testing.T) {
+	withANSIProfile(t)
+	b := hierarchyTestBoard(hierarchyFixtureTasks(), 1, 1, 120, 40)
+	target := relationTargetFor(t, b, 2)
+
+	hoverAt(b, 4, target.rect.y0)
+	line := rowLineFor(t, b, 2)
+
+	want := "#2 [todo] Mid Two (2/2 done)"
+	if got := textWithSGR(line, sgrUnderline); got != want {
+		t.Errorf("underlined text = %q, want %q", got, want)
+	}
+	// The counter keeps its own color while the underline stays active over it.
+	// Nesting would end one of the two at the other's reset.
+	if got := textWithSGR(line, sgrComplete); got != " (2/2 done)" {
+		t.Errorf("green text inside the underlined row = %q, want the counter: %q", got, line)
+	}
+}
+
+func TestHierarchyCompleteCountIsGreen(t *testing.T) {
+	withANSIProfile(t)
+	b := hierarchyTestBoard(hierarchyFixtureTasks(), 1, 1, 120, 40)
+
+	complete := rowLineFor(t, b, 2) // 2/2 done
+	if got := textWithSGR(complete, sgrComplete); got != " (2/2 done)" {
+		t.Errorf("green text of the complete row = %q, want the counter alone: %q", got, complete)
+	}
+
+	partial := rowLineFor(t, b, 1) // 1/2 done, the open ticket
+	if strings.Contains(partial, "\x1b["+sgrComplete+"m") {
+		t.Errorf("an incomplete counter is rendered green: %q", partial)
+	}
+}
+
+func TestHierarchyOpenTicketIsBoldAndNotDimmed(t *testing.T) {
+	withANSIProfile(t)
+	b := hierarchyTestBoard(hierarchyFixtureTasks(), 1, 1, 120, 40)
+
+	open := rowLineFor(t, b, 1)
+	if got := textWithSGR(open, sgrBold); !strings.HasPrefix(got, "#1 ") {
+		t.Errorf("bold text of the open ticket = %q, want its row text: %q", got, open)
+	}
+	if textWithSGR(open, sgrDim) != "" {
+		t.Errorf("the open ticket is dimmed as well as bold: %q", open)
+	}
+
+	archived := hierarchyTestBoard(archivedAncestorTasks(), 2, 1, 120, 40)
+	ancestor := rowLineFor(t, archived, 1)
+	if got := textWithSGR(ancestor, sgrDim); !strings.HasPrefix(got, "#1 ") {
+		t.Errorf("dimmed text of the archived ancestor = %q, want its row text: %q", got, ancestor)
+	}
+	if textWithSGR(ancestor, sgrBold) != "" {
+		t.Errorf("the archived ancestor is rendered bold: %q", ancestor)
+	}
+
+	// The ellipsis row is the one dimmed row without an ID.
+	cut := hierarchyTestBoard(hierarchyFixtureTasks(), 1, 1, 120, 40)
+	ellipsis := ellipsisRow(t, cut.View())
+	if got := textWithSGR(ellipsis, sgrDim); got != hierarchyEllipsis {
+		t.Errorf("dimmed text of the ellipsis row = %q, want %q", got, hierarchyEllipsis)
+	}
+	if textWithSGR(ellipsis, sgrBold) != "" || textWithSGR(ellipsis, sgrUnderline) != "" {
+		t.Errorf("the ellipsis row carries more than dim: %q", ellipsis)
+	}
+}
+
+// ellipsisRow returns the rendered row holding the cut-off marker.
+func ellipsisRow(t *testing.T, view string) string {
+	t.Helper()
+	for _, line := range strings.Split(view, "\n") {
+		if strings.Contains(line, hierarchyEllipsis) {
+			return line
+		}
+	}
+	t.Fatalf("no rendered row holds the ellipsis marker:\n%q", view)
+	return ""
+}
+
+func TestHierarchyOpenTicketIsNoCursorStopAndNoClickTarget(t *testing.T) {
+	withANSIProfile(t)
+	b := hierarchyTestBoard(hierarchyFixtureTasks(), 1, 1, 120, 40)
+
+	for _, target := range b.layout.relations {
+		if target.taskID == 1 {
+			t.Errorf("the open ticket has a click target: %+v", target)
+		}
+	}
+
+	c := b.detailContent(b.detailTask)
+	nav := navigableRelations(c)
+	if len(nav) == 0 {
+		t.Fatal("no navigable rows in the tree")
+	}
+	for range len(nav) + 1 {
+		b.moveDetailCursor(1)
+		ref, ok := b.detailCursorRef(b.detailContent(b.detailTask))
+		if ok && ref.taskID == 1 {
+			t.Fatalf("tab put the cursor on the open ticket")
+		}
+	}
+
+	openRow := refFor(t, c, 1)
+	hoverAt(b, 4, openRow.startLine)
+	if rows := underlinedRows(b.View()); len(rows) != 0 {
+		t.Errorf("hovering the open ticket underlined rows %v", rows)
+	}
+}
+
+// refFor returns the relation block of a task ID.
+func refFor(t *testing.T, c detailContent, id int) relationRef {
+	t.Helper()
+	for _, ref := range c.relations {
+		if ref.taskID == id {
+			return ref
+		}
+	}
+	t.Fatalf("no relation block for #%d", id)
+	return relationRef{}
+}
+
+// --- T8: cursor, hit test and scrolling on a tall tree ---
+
+// newDeepTreeTestBoard builds a board whose tree is far taller than the window:
+// one root, six children, five grandchildren each, two levels shown, 20 rows of
+// terminal height.
+func newDeepTreeTestBoard() *Board {
+	tasks := []*task.Task{
+		{ID: 1, Title: "Deep Root", Status: dragStatusBacklog, Priority: treePriorityHigh, Updated: mouseTestTime},
+	}
+	id := 2
+	for epic := range 6 {
+		epicID := id
+		tasks = append(tasks, &task.Task{
+			ID: epicID, Title: fmt.Sprintf("Epic %d", epic), Status: dragStatusTodo,
+			Priority: treePriorityDefault, Parent: idPtr(1), Updated: mouseTestTime,
+		})
+		id++
+		for story := range 5 {
+			tasks = append(tasks, &task.Task{
+				ID: id, Title: fmt.Sprintf("Story %d-%d", epic, story), Status: dragStatusTodo,
+				Priority: "low", Parent: idPtr(epicID), Updated: mouseTestTime,
+			})
+			id++
+		}
+	}
+	return hierarchyTestBoard(tasks, 1, 2, 120, 20)
+}
+
+func TestDeepTreeTabScrollsThroughEveryStopInReadingOrder(t *testing.T) {
+	b := newDeepTreeTestBoard()
+	nav := navigableRelations(b.detailContent(b.detailTask))
+	if len(nav) != 36 {
+		t.Fatalf("navigable rows = %d, want 36 (6 epics plus 30 stories)", len(nav))
+	}
+
+	for i := range nav {
+		b.moveDetailCursor(1)
+		c := b.detailContent(b.detailTask)
+		ref, ok := b.detailCursorRef(c)
+		if !ok {
+			t.Fatalf("cursor inactive after %d steps", i+1)
+		}
+		if ref.taskID != nav[i].taskID {
+			t.Fatalf("step %d put the cursor on #%d, want #%d in reading order",
+				i+1, ref.taskID, nav[i].taskID)
+		}
+		off, viewHeight := b.detailViewport(len(c.lines))
+		fits := ref.startLine >= off && ref.startLine+ref.lineCount <= off+viewHeight
+		aligned := ref.lineCount > viewHeight && ref.startLine == off
+		if !fits && !aligned {
+			t.Fatalf("step %d left #%d (lines %d..%d) outside the window %d..%d",
+				i+1, ref.taskID, ref.startLine, ref.startLine+ref.lineCount, off, off+viewHeight)
+		}
+	}
+}
+
+func TestDeepTreeClickOnLastRowAfterScrolling(t *testing.T) {
+	b := newDeepTreeTestBoard()
+	nav := navigableRelations(b.detailContent(b.detailTask))
+	lastID := nav[len(nav)-1].taskID
+
+	for range len(nav) {
+		b.moveDetailCursor(1)
+	}
+	_ = b.View()
+
+	target := relationTargetFor(t, b, lastID)
+	clickAt(b, 4, target.rect.y0, tea.MouseButtonLeft)
+
+	if b.detailTask == nil || b.detailTask.ID != lastID {
+		t.Fatalf("click opened %v, want #%d", b.detailTask, lastID)
+	}
+	if len(b.detailStack) != 1 {
+		t.Errorf("detail stack has %d frames, want 1", len(b.detailStack))
+	}
+}
+
+func TestDeepTreeHalfScrolledBlockKeepsClippedHitZone(t *testing.T) {
+	b := newDeepTreeTestBoard()
+	// A title long enough to wrap the block over exactly two lines.
+	b.allTasks[1].Title = strings.Repeat("Wrapping epic title ", 7)
+	b.rebuildHierarchyIndex()
+	b.invalidatePointerState()
+
+	ref := refFor(t, b.detailContent(b.detailTask), 2)
+	if ref.lineCount != 2 {
+		t.Fatalf("row of #2 spans %d lines, want exactly 2", ref.lineCount)
+	}
+	b.detailScrollOff = ref.startLine + 1
+	b.invalidatePointerState()
+	_ = b.View()
+
+	target := relationTargetFor(t, b, 2)
+	if target.rect.y0 != 0 || target.rect.y1 != 1 {
+		t.Fatalf("clipped hit zone = %d..%d, want 0..1", target.rect.y0, target.rect.y1)
+	}
+	withANSIProfile(t)
+	hoverAt(b, 4, 0)
+	if rows := underlinedRows(b.View()); len(rows) != 1 || rows[0] != 0 {
+		t.Errorf("underlined rows = %v, want exactly row 0", rows)
+	}
+	clickAt(b, 4, 0, tea.MouseButtonLeft)
+	if b.detailTask == nil || b.detailTask.ID != 2 {
+		t.Errorf("click on the clipped row opened %v, want #2", b.detailTask)
+	}
+}
+
+func TestDeepTreeWheelClampReachesLastRow(t *testing.T) {
+	b := newDeepTreeTestBoard()
+	nav := navigableRelations(b.detailContent(b.detailTask))
+	lastID := nav[len(nav)-1].taskID
+
+	for range 100 {
+		_, _ = b.Update(tea.MouseMsg{
+			X: 10, Y: 5, Button: tea.MouseButtonWheelDown, Action: tea.MouseActionPress,
+		})
+	}
+
+	want := fmt.Sprintf("#%d ", lastID)
+	if got := b.View(); !strings.Contains(plainLine(got), want) {
+		t.Errorf("the last tree row %q is not visible at the clamped offset:\n%s", want, got)
+	}
+}
+
+// --- T9: the E2E click coordinate, derived instead of counted ---
+
+func TestE2EChildRowGeometryIsPinned(t *testing.T) {
+	// Same shape as the E2E fixture: a critical backlog parent with the default
+	// class set, one backlog child, mouse on, 120x40.
+	tasks := []*task.Task{
+		{
+			ID: 1, Title: "Parent task", Status: dragStatusBacklog, Priority: treePriorityHigh,
+			Class: config.DefaultClass, Created: mouseTestTime, Updated: mouseTestTime,
+		},
+		{
+			ID: 2, Title: "Child task", Status: dragStatusBacklog, Priority: treePriorityDefault,
+			Class: config.DefaultClass, Parent: idPtr(1), Created: mouseTestTime, Updated: mouseTestTime,
+		},
+	}
+	b := hierarchyTestBoard(tasks, 1, 1, 120, 40)
+
+	got := relationTargetFor(t, b, 2).rect.y0
+
+	if got != e2eChildRow {
+		t.Errorf("the child row sits on screen row %d, not %d. Update childRow in "+
+			"e2e/tui_mouse_navigation_test.go and e2eChildRow here to %d.", got, e2eChildRow, got)
+	}
+}

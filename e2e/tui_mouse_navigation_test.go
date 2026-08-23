@@ -112,10 +112,12 @@ func TestE2E_TUIMouse_RelationClickOpensChild(t *testing.T) {
 	session.clickSGR(2, 2)
 	session.waitForOutputSince(checkpoint, "└─ #2")
 
-	// Fixed geometry of a freshly created task: header, separator, blank,
-	// Status, Priority, Class, Created, Updated, blank, the children heading,
-	// then the single child row.
-	const childRow = 10
+	// Fixed geometry of a freshly created task: header(0), separator(1),
+	// blank(2), Status(3), Priority(4), Class(5), Created(6), Updated(7),
+	// blank(8), the Hierarchy heading(9), the row of the open task(10), then the
+	// single child row. The number is pinned by TestE2EChildRowGeometryIsPinned
+	// in internal/tui, which reports the new value when the geometry moves.
+	const childRow = 11
 	checkpoint = session.checkpoint()
 	session.mouseSGR(35, 4, childRow, false) // buttonless motion = hover
 	session.clickSGR(4, childRow)

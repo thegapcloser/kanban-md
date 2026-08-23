@@ -252,17 +252,17 @@ func underlinedRows(v string) []int {
 	return rows
 }
 
-// rowWith returns the full text of the rendered row holding a substring. A row
-// styled per rune does not keep its text contiguous, so this finds only rows
-// rendered plain or wrapped in a single style.
-func rowWith(t *testing.T, v, want string) string {
-	t.Helper()
-	for _, line := range strings.Split(v, "\n") {
-		if strings.Contains(line, want) {
+// stripANSIRun removes the escape sequences from a rendered view.
+func stripANSIRun(v string) string { return plainLine(v) }
+
+// cursorLine returns the rendered row carrying the cursor gutter, escape
+// sequences removed, or the empty string when no row has it.
+func cursorLine(v string) string {
+	for _, line := range strings.Split(stripANSIRun(v), "\n") {
+		if strings.HasPrefix(line, relationCursorGutter) {
 			return line
 		}
 	}
-	t.Fatalf("no rendered row contains %q:\n%q", want, v)
 	return ""
 }
 
@@ -308,11 +308,11 @@ func TestRelationSelfParentIsInertInEveryPath(t *testing.T) {
 	b.detailTask = taskByID(t, b, 8)
 	b.invalidatePointerState()
 
-	// A navigable, unhovered relation row renders as bare gutter plus text; a
-	// non-navigable one is wrapped in dimStyle.
-	row := rowWith(t, b.View(), "↑ Parent  #8")
-	if row == relationGutter+"↑ Parent  #8" {
-		t.Fatalf("a self-referencing parent row renders undecorated, like a link: %q", row)
+	// A task pointing at itself resolves to no parent, so the chain ends without
+	// a row — which leaves a one-row tree, and that is not shown at all. There
+	// is nothing to click, nothing to tab to and nothing to hover.
+	if strings.Contains(stripANSIRun(b.View()), hierarchyHeading) {
+		t.Fatalf("a self-referencing parent produced a hierarchy block:\n%q", b.View())
 	}
 	if len(b.layout.relations) != 0 {
 		t.Errorf("a self-referencing parent produced %d click targets, want none",
@@ -320,8 +320,8 @@ func TestRelationSelfParentIsInertInEveryPath(t *testing.T) {
 	}
 
 	b.moveDetailCursor(1)
-	if strings.Contains(b.View(), relationCursorGutter+"↑ Parent") {
-		t.Errorf("tab put the cursor on a self-referencing parent row:\n%q", b.View())
+	if strings.Contains(b.View(), relationCursorGutter) {
+		t.Errorf("tab put the cursor on a row of a self-referencing task:\n%q", b.View())
 	}
 
 	for y := range 12 {
@@ -421,8 +421,9 @@ func TestRelationHoverAndCursorCoexist(t *testing.T) {
 	hoverAt(b, 4, hoverTarget.rect.y0)
 
 	v := b.View()
-	if !strings.Contains(v, relationCursorGutter+"├─ #2 [todo] Child One") {
-		t.Errorf("keyboard cursor marker vanished while hovering another row:\n%q", v)
+	if got := cursorLine(v); !strings.Contains(got, "├─ #2 [todo] Child One") {
+		t.Errorf("keyboard cursor row is %q, want it on #2 while another row is hovered:\n%q",
+			got, v)
 	}
 	got := underlinedRows(v)
 	if len(got) != 1 || got[0] != hoverTarget.rect.y0 {

@@ -18,11 +18,12 @@ import (
 // direct child of the epic.
 const titleGrandchild = "Grandchild"
 
-// setupRelationNavBoard builds a board whose tree covers every navigability
-// case of the detail view: resolvable parent and children (#1..#3, #7), an
-// archived child of #1 (#4), a dangling parent reference (#5), and a child of
-// that archived parent (#6).
-func setupRelationNavBoard(t *testing.T) (*tui.Board, *config.Config) {
+// relationCursorMarker is the cursor gutter as it appears in a rendered row.
+const relationCursorMarker = "> "
+
+// newFileBoard writes a task set to a fresh board directory and opens a TUI on
+// it at 120x40, the size every relation and snapshot assertion assumes.
+func newFileBoard(t *testing.T, name string, tasks []*task.Task) (*tui.Board, *config.Config) {
 	t.Helper()
 
 	dir := t.TempDir()
@@ -32,11 +33,30 @@ func setupRelationNavBoard(t *testing.T) (*tui.Board, *config.Config) {
 		t.Fatalf("creating dirs: %v", err)
 	}
 
-	cfg := config.NewDefault("Relation Nav Board")
+	cfg := config.NewDefault(name)
 	cfg.SetDir(kanbanDir)
 	if err := cfg.Save(); err != nil {
 		t.Fatalf("saving config: %v", err)
 	}
+	for _, tk := range tasks {
+		path := filepath.Join(tasksDir, task.GenerateFilename(tk.ID, tk.Title))
+		if err := task.Write(path, tk); err != nil {
+			t.Fatalf("writing task %d: %v", tk.ID, err)
+		}
+	}
+
+	b := tui.NewBoard(cfg)
+	b.SetNow(testNow)
+	b.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	return b, cfg
+}
+
+// setupRelationNavBoard builds a board whose tree covers every navigability
+// case of the detail view: resolvable parent and children (#1..#3, #7), an
+// archived child of #1 (#4), a dangling parent reference (#5), and a child of
+// that archived parent (#6).
+func setupRelationNavBoard(t *testing.T) (*tui.Board, *config.Config) {
+	t.Helper()
 
 	epicID := 1
 	childID := 2
@@ -51,17 +71,44 @@ func setupRelationNavBoard(t *testing.T) (*tui.Board, *config.Config) {
 		{ID: 6, Title: "Archived Parent Child", Status: statusTodo, Priority: "low", Parent: &archivedID, Updated: testRefTime},
 		{ID: 7, Title: titleGrandchild, Status: statusTodo, Priority: "medium", Parent: &childID, Updated: testRefTime},
 	}
-	for _, tk := range tasks {
-		path := filepath.Join(tasksDir, task.GenerateFilename(tk.ID, tk.Title))
-		if err := task.Write(path, tk); err != nil {
-			t.Fatalf("writing task %d: %v", tk.ID, err)
-		}
-	}
+	return newFileBoard(t, "Relation Nav Board", tasks)
+}
 
-	b := tui.NewBoard(cfg)
-	b.SetNow(testNow)
-	b.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
-	return b, cfg
+// setupHierarchyTreeBoard writes a three-level board — one milestone, two epics,
+// three stories — and opens the detail view of one task with a fixed level
+// budget.
+func setupHierarchyTreeBoard(t *testing.T, detailTitle string, levels int) *tui.Board {
+	t.Helper()
+
+	milestoneID := 1
+	firstEpicID := 2
+	secondEpicID := 3
+	tasks := []*task.Task{
+		{ID: 1, Title: "Milestone One", Status: statusTodo, Priority: "high", Updated: testRefTime},
+		{
+			ID: 2, Title: "Epic Two", Status: statusDone, Priority: "medium",
+			Parent: &milestoneID, Updated: testRefTime,
+		},
+		{
+			ID: 3, Title: "Epic Three", Status: config.DefaultStatus, Priority: "medium",
+			Parent: &milestoneID, Updated: testRefTime,
+		},
+		{
+			ID: 4, Title: "Story Four", Status: statusDone, Priority: "low",
+			Parent: &firstEpicID, Updated: testRefTime,
+		},
+		{
+			ID: 5, Title: "Story Five", Status: statusDone, Priority: "low",
+			Parent: &firstEpicID, Updated: testRefTime,
+		},
+		{
+			ID: 6, Title: "Story Six", Status: config.DefaultStatus, Priority: "low",
+			Parent: &secondEpicID, Updated: testRefTime,
+		},
+	}
+	b, cfg := newFileBoard(t, "Hierarchy Tree Board", tasks)
+	cfg.TUI.HierarchyLevels = &levels
+	return openTaskDetail(t, b, detailTitle)
 }
 
 // openTaskDetail searches for a task by title and opens its detail view. The
@@ -92,22 +139,35 @@ func TestBoard_DetailRelationLinesUnchangedWithoutCursor(t *testing.T) {
 
 	for _, want := range []string{
 		"Task #1: Epic Alpha",
-		"Children (1/2 done)",
-		"├─ #2 [todo] Child One",
+		"└─ #1 [backlog] Epic Alpha (1/2 done)",
+		"├─ #2 [todo] Child One (0/1 done)",
 		"└─ #3 [done] Child Two",
 	} {
 		if !containsStr(v, want) {
 			t.Errorf("detail view of #1 missing %q:\n%s", want, v)
 		}
 	}
-	// #4 is an archived child of #1 and #7 an indirect descendant: the children
-	// list must hold neither, and both are present in the fixture so the
+	// #4 is an archived child of #1 and #7 an indirect descendant: one level of
+	// tree must hold neither, and both are present in the fixture so the
 	// assertion can actually fail.
 	for _, unwanted := range []string{"Archived Thing", titleGrandchild} {
 		if containsStr(v, unwanted) {
 			t.Errorf("detail view of #1 should not list %q:\n%s", unwanted, v)
 		}
 	}
+}
+
+// cursorRow returns the rendered row carrying the cursor gutter, ANSI stripped,
+// or the empty string when no row has it. Asserting on the row instead of on a
+// literal "> " + prefix keeps the assertion about the cursor and not about how
+// deep the row happens to be indented.
+func cursorRow(v string) string {
+	for _, line := range strings.Split(stripANSI(v), "\n") {
+		if strings.HasPrefix(line, relationCursorMarker) {
+			return line
+		}
+	}
+	return ""
 }
 
 // lastRenderedLine returns the bottom line of a view with ANSI codes stripped.
@@ -122,12 +182,10 @@ func TestBoard_DetailCursorInactiveOnOpen(t *testing.T) {
 	v := b.View()
 
 	if !containsStr(v, "  ├─ #2 [todo] Child One") {
-		t.Errorf("relation row is missing the two-cell gutter:\n%s", v)
+		t.Errorf("tree row is missing the two-cell gutter:\n%s", v)
 	}
-	for _, marker := range []string{"> ├─", "> └─", "> ↑ Parent"} {
-		if containsStr(v, marker) {
-			t.Errorf("detail view marks a relation with %q before the cursor was activated:\n%s", marker, v)
-		}
+	if row := cursorRow(v); row != "" {
+		t.Errorf("detail view marks row %q before the cursor was activated:\n%s", row, v)
 	}
 }
 
@@ -164,47 +222,54 @@ func TestBoard_DetailTabActivatesAndWrapsCursor(t *testing.T) {
 	b = sendSpecialKey(b, tea.KeyEnter)
 
 	for i, want := range []string{
-		"> ├─ #2 [todo] Child One",
-		"> └─ #3 [done] Child Two",
-		"> ├─ #2 [todo] Child One",
+		"├─ #2 [todo] Child One",
+		"└─ #3 [done] Child Two",
+		"├─ #2 [todo] Child One",
 	} {
 		b = sendSpecialKey(b, tea.KeyTab)
-		if !containsStr(b.View(), want) {
-			t.Fatalf("tab press %d: cursor not on %q:\n%s", i+1, want, b.View())
+		if got := cursorRow(b.View()); !strings.Contains(got, want) {
+			t.Fatalf("tab press %d: cursor row is %q, want it on %q:\n%s", i+1, got, want, b.View())
 		}
 	}
 
 	b = sendSpecialKey(b, tea.KeyShiftTab)
-	if !containsStr(b.View(), "> └─ #3 [done] Child Two") {
-		t.Errorf("shift+tab did not wrap backwards:\n%s", b.View())
+	if got := cursorRow(b.View()); !strings.Contains(got, "└─ #3 [done] Child Two") {
+		t.Errorf("shift+tab did not wrap backwards, cursor row is %q:\n%s", got, b.View())
 	}
 }
 
-func TestBoard_DetailCursorVisitsParentFirst(t *testing.T) {
+func TestBoard_DetailCursorVisitsAncestorFirst(t *testing.T) {
+	// Reading order: the ancestor stands above the open task, so tab reaches it
+	// before the descendant below.
 	b, _ := setupRelationNavBoard(t)
 	b = openTaskDetail(t, b, "Child One")
 
 	b = sendSpecialKey(b, tea.KeyTab)
-	if !containsStr(b.View(), "> ↑ Parent  #1 [backlog] Epic Alpha") {
-		t.Fatalf("first tab did not select the parent row:\n%s", b.View())
+	if got := cursorRow(b.View()); !strings.Contains(got, "└─ #1 [backlog] Epic Alpha") {
+		t.Fatalf("first tab selected %q, want the ancestor row:\n%s", got, b.View())
 	}
 	b = sendSpecialKey(b, tea.KeyTab)
-	if !containsStr(b.View(), "> └─ #7 [todo] Grandchild") {
-		t.Errorf("second tab did not select the child row:\n%s", b.View())
+	if got := cursorRow(b.View()); !strings.Contains(got, "└─ #7 [todo] "+titleGrandchild) {
+		t.Errorf("second tab selected %q, want the descendant row:\n%s", got, b.View())
 	}
 }
 
 func TestBoard_DetailNonNavigableRelationIsNoCursorStop(t *testing.T) {
+	// A broken parent reference is no longer a row of its own: the chain simply
+	// ends, and a one-row tree is not shown at all. An archived ancestor is
+	// shown, ends the chain and stays out of reach of the cursor.
 	for _, tt := range []struct {
 		name     string
 		title    string
 		wantLine string
+		wantTree bool
 	}{
-		{name: "dangling parent", title: "Orphan Child", wantLine: "  ↑ Parent  #999"},
+		{name: "dangling parent", title: "Orphan Child"},
 		{
 			name:     "archived parent",
 			title:    "Archived Parent Child",
-			wantLine: "  ↑ Parent  #4 [archived] Archived Thing",
+			wantLine: "  └─ #4 [archived] Archived Thing",
+			wantTree: true,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -213,11 +278,14 @@ func TestBoard_DetailNonNavigableRelationIsNoCursorStop(t *testing.T) {
 			b = sendSpecialKey(b, tea.KeyTab)
 			v := b.View()
 
-			if !containsStr(v, tt.wantLine) {
-				t.Errorf("relation row is not rendered as %q:\n%s", tt.wantLine, v)
+			if tt.wantTree != containsStr(v, "Hierarchy") {
+				t.Errorf("hierarchy block present = %t, want %t:\n%s", !tt.wantTree, tt.wantTree, v)
 			}
-			if containsStr(v, "> ↑ Parent") {
-				t.Errorf("tab put the cursor on a non-navigable relation:\n%s", v)
+			if tt.wantLine != "" && !containsStr(v, tt.wantLine) {
+				t.Errorf("tree row is not rendered as %q:\n%s", tt.wantLine, v)
+			}
+			if row := cursorRow(v); row != "" {
+				t.Errorf("tab put the cursor on %q, a non-navigable row:\n%s", row, v)
 			}
 		})
 	}
@@ -233,12 +301,13 @@ func TestBoard_DetailTabScrollsCursorIntoView(t *testing.T) {
 		b = sendKey(b, "j")
 	}
 	if containsStr(b.View(), "├─ #2") {
-		t.Fatalf("relation rows are still visible after scrolling to the bottom:\n%s", b.View())
+		t.Fatalf("tree rows are still visible after scrolling to the bottom:\n%s", b.View())
 	}
 
 	b = sendSpecialKey(b, tea.KeyTab)
-	if !containsStr(b.View(), "> ├─ #2") {
-		t.Errorf("tab did not scroll the cursor row back into view:\n%s", b.View())
+	if got := cursorRow(b.View()); !strings.Contains(got, "├─ #2") {
+		t.Errorf("tab did not scroll the cursor row back into view, cursor row is %q:\n%s",
+			got, b.View())
 	}
 }
 
