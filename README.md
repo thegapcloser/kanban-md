@@ -305,7 +305,19 @@ Modify an existing task.
 ```bash
 kanban-md edit ID [FLAGS]
 kanban-md edit 1,2,3 --priority high  # batch edit
+
+# Replace one exact passage without rewriting the whole body
+kanban-md edit 42 \
+  --body-replace '[BLOCKED: design]' \
+  --body-with '[RESOLVED: design]'
+
+# Repeat both flags in the same order for an atomic multi-edit
+kanban-md edit 42 \
+  --body-replace 'old first passage' --body-with 'new first passage' \
+  --body-replace 'old second passage' --body-with 'new second passage'
 ```
+
+Each `--body-replace` passage must occur exactly once when its pair is applied. If any pair is missing or ambiguous, the task is left unchanged. Body replacement flags cannot be combined with `--body` or `--append-body`.
 
 | Flag | Description |
 |------|-------------|
@@ -320,6 +332,8 @@ kanban-md edit 1,2,3 --priority high  # batch edit
 | `--estimate` | New time estimate |
 | `--body` | New body text (replaces entire body) |
 | `--append-body`, `-a` | Append text to task body |
+| `--body-replace` | Exact body text to replace; repeat for multiple edits |
+| `--body-with` | Replacement text paired by order with `--body-replace` |
 | `--timestamp`, `-t` | Prefix a timestamp line when appending |
 | `--started` | Set started date (YYYY-MM-DD) |
 | `--clear-started` | Clear started timestamp |

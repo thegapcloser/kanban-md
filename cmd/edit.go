@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"os"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -35,6 +36,8 @@ func init() {
 	editCmd.Flags().String("estimate", "", "new time estimate")
 	editCmd.Flags().String("body", "", "new body text (replaces entire body)")
 	editCmd.Flags().StringP("append-body", "a", "", "append text to task body")
+	editCmd.Flags().StringArray("body-replace", nil, "exact body text to replace (repeat with --body-with)")
+	editCmd.Flags().StringArray("body-with", nil, "replacement body text paired with --body-replace")
 	editCmd.Flags().BoolP("timestamp", "t", false, "prefix a timestamp line when appending")
 	editCmd.Flags().String("started", "", "set started date (YYYY-MM-DD)")
 	editCmd.Flags().Bool("clear-started", false, "clear started timestamp")
@@ -199,20 +202,11 @@ func applySimpleEditFlags(cmd *cobra.Command, t *task.Task, cfg *config.Config) 
 		t.Estimate = v
 		changed = true
 	}
-	bodySet := cmd.Flags().Changed("body")
-	appendSet := cmd.Flags().Changed("append-body")
-	if bodySet && appendSet {
-		return false, clierr.New(clierr.StatusConflict, "cannot use --body and --append-body together")
+	bodyChanged, bodyErr := applyBodyEditFlags(cmd, t)
+	if bodyErr != nil {
+		return false, bodyErr
 	}
-	if bodySet {
-		v, _ := cmd.Flags().GetString("body")
-		t.Body = v
-		changed = true
-	}
-	if appendSet {
-		v, _ := cmd.Flags().GetString("append-body")
-		ts, _ := cmd.Flags().GetBool("timestamp")
-		t.Body = board.AppendBody(t.Body, v, ts)
+	if bodyChanged {
 		changed = true
 	}
 	if v, _ := cmd.Flags().GetString("class"); v != "" {
@@ -224,6 +218,66 @@ func applySimpleEditFlags(cmd *cobra.Command, t *task.Task, cfg *config.Config) 
 	}
 
 	return changed, nil
+}
+
+func applyBodyEditFlags(cmd *cobra.Command, t *task.Task) (bool, error) {
+	bodySet := cmd.Flags().Changed("body")
+	appendSet := cmd.Flags().Changed("append-body")
+	replaceSet := cmd.Flags().Changed("body-replace")
+	withSet := cmd.Flags().Changed("body-with")
+	bodyModes := 0
+	for _, set := range []bool{bodySet, appendSet, replaceSet || withSet} {
+		if set {
+			bodyModes++
+		}
+	}
+	if bodyModes > 1 {
+		return false, clierr.New(clierr.StatusConflict, "cannot combine --body, --append-body, or body replacement flags")
+	}
+	if replaceSet != withSet {
+		return false, clierr.New(clierr.InvalidInput, "--body-replace and --body-with must be used together")
+	}
+	if bodySet {
+		v, _ := cmd.Flags().GetString("body")
+		t.Body = v
+		return true, nil
+	}
+	if appendSet {
+		v, _ := cmd.Flags().GetString("append-body")
+		ts, _ := cmd.Flags().GetBool("timestamp")
+		t.Body = board.AppendBody(t.Body, v, ts)
+		return true, nil
+	}
+	if replaceSet {
+		oldTexts, _ := cmd.Flags().GetStringArray("body-replace")
+		newTexts, _ := cmd.Flags().GetStringArray("body-with")
+		body, err := applyBodyReplacements(t.Body, oldTexts, newTexts)
+		if err != nil {
+			return false, err
+		}
+		t.Body = body
+		return true, nil
+	}
+	return false, nil
+}
+
+// applyBodyReplacements applies exact replacement pairs in flag order.
+// Every search passage must occur exactly once at the point it is applied.
+func applyBodyReplacements(body string, oldTexts, newTexts []string) (string, error) {
+	if len(oldTexts) != len(newTexts) {
+		return "", clierr.New(clierr.InvalidInput, "--body-replace and --body-with require the same number of values")
+	}
+	for i, oldText := range oldTexts {
+		if oldText == "" {
+			return "", clierr.Newf(clierr.InvalidInput, "--body-replace value %d must not be empty", i+1)
+		}
+		count := strings.Count(body, oldText)
+		if count != 1 {
+			return "", clierr.Newf(clierr.InvalidInput, "--body-replace value %d must occur exactly once; found %d times", i+1, count)
+		}
+		body = strings.Replace(body, oldText, newTexts[i], 1)
+	}
+	return body, nil
 }
 
 func applyTimestampFlags(cmd *cobra.Command, t *task.Task) (bool, error) {

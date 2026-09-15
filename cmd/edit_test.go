@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -63,6 +64,77 @@ func TestAppendUniqueInts(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := appendUniqueInts(tt.slice, tt.items...)
 			assertInts(t, got, tt.want)
+		})
+	}
+}
+
+func TestApplyBodyReplacements(t *testing.T) {
+	tests := []struct {
+		name     string
+		body     string
+		oldTexts []string
+		newTexts []string
+		want     string
+		wantErr  string
+	}{
+		{
+			name:     "replaces one exact passage",
+			body:     "before\n[BLOCKED: design]\nafter",
+			oldTexts: []string{"[BLOCKED: design]"},
+			newTexts: []string{"[RESOLVED: design]"},
+			want:     "before\n[RESOLVED: design]\nafter",
+		},
+		{
+			name:     "applies repeated flag pairs in order",
+			body:     "alpha beta gamma",
+			oldTexts: []string{"alpha", "gamma"},
+			newTexts: []string{"one", "three"},
+			want:     "one beta three",
+		},
+		{
+			name:     "rejects unequal pair counts",
+			body:     "alpha",
+			oldTexts: []string{"alpha"},
+			wantErr:  "same number",
+		},
+		{
+			name:     "rejects an empty search passage",
+			body:     "alpha",
+			oldTexts: []string{""},
+			newTexts: []string{"beta"},
+			wantErr:  "must not be empty",
+		},
+		{
+			name:     "rejects a missing passage",
+			body:     "alpha",
+			oldTexts: []string{"beta"},
+			newTexts: []string{"gamma"},
+			wantErr:  "found 0 times",
+		},
+		{
+			name:     "rejects an ambiguous passage",
+			body:     "alpha plus alpha",
+			oldTexts: []string{"alpha"},
+			newTexts: []string{"beta"},
+			wantErr:  "found 2 times",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := applyBodyReplacements(tt.body, tt.oldTexts, tt.newTexts)
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("error = %v, want containing %q", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tt.want {
+				t.Errorf("body = %q, want %q", got, tt.want)
+			}
 		})
 	}
 }
