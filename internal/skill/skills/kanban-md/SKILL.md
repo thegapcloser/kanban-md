@@ -59,6 +59,7 @@ Each task is a `.md` file in `kanban/tasks/`. The CLI is `kanban-md`
 | Move a task back                        | `kanban-md move ID --prev`                                       |
 | Complete a task                         | `kanban-md move ID done`                                         |
 | Edit task fields                        | `kanban-md edit ID --title "NEW" --priority P`                   |
+| Replace exact task body text            | `kanban-md edit ID --body-replace "OLD" --body-with "NEW"`      |
 | Add/remove tags                         | `kanban-md edit ID --add-tag T --remove-tag T`                   |
 | Set a due date                          | `kanban-md edit ID --due 2026-03-01`                             |
 | Block a task                            | `kanban-md edit ID --block "REASON"`                             |
@@ -123,7 +124,8 @@ Run once per agent session and remember the result.
 ```bash
 kanban-md edit ID[,ID,...] [--title T] [--status S] [--priority P] [--assignee A] \
   [--add-tag T] [--remove-tag T] [--due YYYY-MM-DD] [--clear-due] \
-  [--estimate E] [--body "TEXT"] [-a "TEXT"] [--started YYYY-MM-DD] [--clear-started] \
+  [--estimate E] [--body "TEXT"] [-a "TEXT"] \
+  [--body-replace "OLD"] [--body-with "NEW"] [--started YYYY-MM-DD] [--clear-started] \
   [--completed YYYY-MM-DD] [--clear-completed] [--parent ID] \
   [--clear-parent] [--add-dep ID] [--remove-dep ID] \
   [--block "REASON"] [--unblock] \
@@ -132,6 +134,7 @@ kanban-md edit ID[,ID,...] [--title T] [--status S] [--priority P] [--assignee A
 
 Only specified fields are changed. Prints a confirmation message.
 `-a` / `--append-body` appends text to the existing body without replacing it.
+`--body-replace` and `--body-with` replace one exact body passage without resending the full body. Repeat both flags in the same order for an atomic multi-edit. Every search passage must occur exactly once when applied; otherwise the task stays unchanged. Do not combine these flags with `--body` or `--append-body`.
 `-t` / `--timestamp` prefixes a timestamp line when appending.
 `--claim` claims (or renews a claim on) the task for the agent.
 `--release` releases the claim on the task.
@@ -355,6 +358,7 @@ kanban-md list --compact --status in-progress,review   # all active/parked work
 - **DO** pass `--yes` on delete. Without it, the command hangs waiting for stdin.
 - **DO** use `pick --claim <agent> --status todo --move in-progress` rather than list → edit → move — it's atomic and prevents claim races.
 - **DO** use `-a` / `--append-body` with `--claim <agent>` when adding progress notes — this renews the claim and appends without overwriting the body.
+- **DO** use paired `--body-replace "OLD" --body-with "NEW"` flags for targeted exact edits instead of reading and resending the full body. Repeat each flag once per replacement.
 - **DO NOT** use `--json` unless you are piping output to another tool or parsing fields programmatically. Default and `--compact` formats are sufficient for reading.
 - **DO NOT** hardcode status or priority values. Read them from `kanban-md board --compact`.
 - **DO NOT** use `--next` or `--prev` without checking current status. They fail at boundary statuses.
