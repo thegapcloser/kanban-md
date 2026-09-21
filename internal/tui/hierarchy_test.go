@@ -229,16 +229,22 @@ func TestLevelFilterWithHiddenEmptyColumns(t *testing.T) {
 }
 
 func TestBlockedCardKeepsRedBorderWithLevelColors(t *testing.T) {
-	// Blocked is a warning, not a classification: it must win over the depth
-	// color in both directions of the setting.
+	// Blocked is a warning, not a classification: it must win over both the
+	// depth color and the selected color in every setting combination.
 	for _, levelColors := range []bool{false, true} {
-		b := setupHierarchyBoard(t, levelColors)
-		blocked := &task.Task{ID: 1, Blocked: true}
+		for _, active := range []bool{false, true} {
+			b := setupHierarchyBoard(t, levelColors)
+			blocked := &task.Task{ID: 1, Blocked: true}
+			style := b.cardBorderStyle(blocked, active)
 
-		got := b.cardBorderStyle(blocked, false).GetBorderTopForeground()
-		if want := blockedCardStyle.GetBorderTopForeground(); got != want {
-			t.Errorf("level_colors=%v: blocked border = %v, want the blocked red %v",
-				levelColors, got, want)
+			got := style.GetBorderTopForeground()
+			if want := blockedCardStyle.GetBorderTopForeground(); got != want {
+				t.Errorf("level_colors=%v active=%v: blocked border = %v, want the blocked red %v",
+					levelColors, active, got, want)
+			}
+			if active && !strings.Contains(style.Render("selected"), "┏") {
+				t.Errorf("level_colors=%v: selected blocked card does not use a thick border", levelColors)
+			}
 		}
 	}
 }

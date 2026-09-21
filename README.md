@@ -750,7 +750,8 @@ kanban-md config set tui.level_colors true
 ```
 
 With it on, each level gets its own border color and the selected card is drawn
-with a thick border instead of a colored one, so its level color stays visible.
+with a thick border instead of changing color, so its level color stays visible.
+A blocked card always keeps its red warning color; selection adds the thick border.
 Blocked cards keep their red border either way.
 
 ### Keyboard shortcuts

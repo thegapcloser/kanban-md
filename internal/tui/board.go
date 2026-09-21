@@ -1976,10 +1976,12 @@ func (b *Board) renderCard(t *task.Task, active bool, width int) string {
 func (b *Board) cardBorderStyle(t *task.Task, active bool) lipgloss.Style {
 	if !b.cfg.TUI.LevelColors {
 		switch {
-		case active:
-			return activeCardStyle
+		case t.Blocked && active:
+			return blockedCardStyle.Border(lipgloss.ThickBorder())
 		case t.Blocked:
 			return blockedCardStyle
+		case active:
+			return activeCardStyle
 		default:
 			return cardStyle
 		}
