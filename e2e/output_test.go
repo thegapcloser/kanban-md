@@ -1,12 +1,15 @@
 package e2e_test
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/thegapcloser/kanban-md/internal/config"
 )
 
 // ---------------------------------------------------------------------------
@@ -201,59 +204,68 @@ func TestTableFlagOutputMetrics(t *testing.T) {
 }
 
 func TestREADMEDocumentsAllCommands(t *testing.T) {
-	readmePath := filepath.Join("..", "README.md")
-	data, err := os.ReadFile(readmePath) //nolint:gosec // test file
+	readme := readRepoFile(t, "README.md")
+
+	// Every top-level command appears in the README. Flag details are the
+	// job of `kanban-md <command> --help`, which cobra keeps complete.
+	r := runKanban(t, t.TempDir(), "--help")
+	if r.exitCode != 0 {
+		t.Fatalf("--help failed: %s", r.stderr)
+	}
+	commands := availableCommands(r.stdout)
+	if len(commands) == 0 {
+		t.Fatal("no commands found in --help output")
+	}
+	for _, name := range commands {
+		if name == "help" {
+			continue
+		}
+		if !strings.Contains(readme, "`"+name+"`") {
+			t.Errorf("README misses command %q", name)
+		}
+	}
+
+	// Every guide the README links to exists.
+	for _, guide := range []string{"guide/configuration.md", "guide/hierarchy.md", "guide/tui.md"} {
+		if !strings.Contains(readme, "("+guide+")") {
+			t.Errorf("README misses link to %s", guide)
+		}
+		readRepoFile(t, guide)
+	}
+
+	// The configuration guide shows the current schema version.
+	want := fmt.Sprintf("version: %d\n", config.CurrentVersion)
+	if !strings.Contains(readRepoFile(t, "guide/configuration.md"), want) {
+		t.Errorf("guide/configuration.md example does not show %q", strings.TrimSpace(want))
+	}
+}
+
+// readRepoFile reads a file relative to the repository root.
+func readRepoFile(t *testing.T, rel string) string {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join("..", rel)) //nolint:gosec // test file
 	if err != nil {
-		t.Fatalf("reading README: %v", err)
+		t.Fatalf("reading %s: %v", rel, err)
 	}
-	readme := string(data)
+	return string(data)
+}
 
-	// Every user-facing command must have a ### `command` section.
-	commands := []string{
-		"init", "create", "list", "show", "edit", "move", "delete",
-		"board", "pick", "metrics", "log", "config", "context",
-	}
-	for _, cmd := range commands {
-		heading := "### `" + cmd + "`"
-		if !strings.Contains(readme, heading) {
-			t.Errorf("README missing command section: %s", heading)
+// availableCommands returns the command names listed under "Available
+// Commands:" in cobra's help output.
+func availableCommands(help string) []string {
+	var names []string
+	inList := false
+	for _, line := range strings.Split(help, "\n") {
+		switch {
+		case strings.HasPrefix(line, "Available Commands:"):
+			inList = true
+		case inList && strings.TrimSpace(line) == "":
+			return names
+		case inList:
+			names = append(names, strings.Fields(line)[0])
 		}
 	}
-
-	// Key flags that must be documented somewhere in the README.
-	requiredFlags := map[string][]string{
-		"init":   {"--wip-limit"},
-		"create": {"--parent", "--depends-on"},
-		"edit": {
-			"--started", "--clear-started", "--completed", "--clear-completed",
-			"--parent", "--clear-parent", "--add-dep", "--remove-dep",
-			"--block", "--unblock", "--claim", "--release", "--class",
-		},
-		"move":    {"--claim"},
-		"list":    {"--blocked", "--not-blocked", "--parent", "--unblocked", "--unclaimed", "--claimed-by", "--class", "--group-by"},
-		"board":   {"--group-by"},
-		"pick":    {"--claim", "--status", "--move", "--tags", "--no-body"},
-		"metrics": {"--since"},
-		"log":     {"--since", "--limit", "--action", "--task"},
-	}
-	for cmd, flags := range requiredFlags {
-		for _, flag := range flags {
-			// Flag should appear in the README (in the command's section or flags table).
-			if !strings.Contains(readme, "`"+flag+"`") {
-				t.Errorf("README missing flag %s for command %s", flag, cmd)
-			}
-		}
-	}
-
-	// Config example must show current schema version.
-	if !strings.Contains(readme, "version: 3") {
-		t.Error("README config example still shows old version (should be version: 3)")
-	}
-
-	// Config example must mention wip_limits.
-	if !strings.Contains(readme, "wip_limits") {
-		t.Error("README config example missing wip_limits field")
-	}
+	return names
 }
 
 // ---------------------------------------------------------------------------

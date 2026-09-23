@@ -1,138 +1,66 @@
 # kanban-md
 
-[![CI](https://github.com/antopolskiy/kanban-md/actions/workflows/build.yml/badge.svg)](https://github.com/antopolskiy/kanban-md/actions/workflows/build.yml)
-[![Release](https://github.com/antopolskiy/kanban-md/actions/workflows/release.yml/badge.svg)](https://github.com/antopolskiy/kanban-md/actions/workflows/release.yml)
-[![Go Version](https://img.shields.io/github/go-mod/go-version/antopolskiy/kanban-md)](https://go.dev/)
-[![Latest Release](https://img.shields.io/github/v/release/antopolskiy/kanban-md)](https://github.com/antopolskiy/kanban-md/releases/latest)
-[![codecov](https://codecov.io/gh/antopolskiy/kanban-md/graph/badge.svg)](https://codecov.io/gh/antopolskiy/kanban-md)
-[![Go Reference](https://pkg.go.dev/badge/github.com/antopolskiy/kanban-md.svg)](https://pkg.go.dev/github.com/antopolskiy/kanban-md)
-[![Go Report Card](https://goreportcard.com/badge/github.com/antopolskiy/kanban-md)](https://goreportcard.com/report/github.com/antopolskiy/kanban-md)
+[![CI](https://github.com/thegapcloser/kanban-md/actions/workflows/build.yml/badge.svg)](https://github.com/thegapcloser/kanban-md/actions/workflows/build.yml)
+[![Release](https://github.com/thegapcloser/kanban-md/actions/workflows/release.yml/badge.svg)](https://github.com/thegapcloser/kanban-md/actions/workflows/release.yml)
+[![Latest Release](https://img.shields.io/github/v/release/thegapcloser/kanban-md)](https://github.com/thegapcloser/kanban-md/releases/latest)
+[![Go Reference](https://pkg.go.dev/badge/github.com/thegapcloser/kanban-md.svg)](https://pkg.go.dev/github.com/thegapcloser/kanban-md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-An agents-first file-based Kanban. Built for multi-agent workflows to allow AI agents work in parallel without clashing. Ultra-fast single binary CLI. Agent skills included. Lean and future-proof: no database, no server, no SaaS — just files.
+A file-based Kanban board for AI agents and the humans who supervise them.
+Several agents can work the same board in parallel without clashing. One
+static binary, agent skills included, no database, no server: every task is a
+Markdown file.
 
 ![Demo](assets/demo.gif)
 
-## How to use it
-
-`kanban-md` is a flexible tool, and you can use it in many ways. Here is one of the ways I use it in my own projects:
-
-1. Install the tool
-```bash
-brew install antopolskiy/tap/kanban-md
-```
-
-2. Go to your project directory and create a board there
-
-```bash
-kanban-md init
-```
-
-This will create a `kanban/` directory and a `config.yml` file. I also usually add it to .gitignore.
-
-
-3. Install skills for your agents
-```bash
-# install skills locally in this project -- I prefer this
-kanban-md skill install 
-
-# install skills globally (home directory)
-kanban-md skill install --global
-```
-
-4. Create tickets manually, or ask your agents do it for you
-```bash
-kanban-md add "Set up CI pipeline" --priority high
-kanban-md add "Fix login bug" --priority critical
-
-claude "add ticket: there is a bug on the login page when the user enters an invalid email address"
-```
-
-5. Kick off `/kanban-based-development` skill in a single agent and observe how it behaves. It should claim a task, create a worktree, implement, test, commit, release the claim and mark the task as done. When confident, kick off the skill in multiple agents -- they will work in parallel without clashing. You should see the progress in the TUI.
-
-```bash
-kanban-md tui
-```
-
-6. Adjust the local skill / AGENTS.md to steer the agents in a way that would make sense for this project.
-
 ## Why kanban-md?
 
-Project management tools are designed for humans clicking buttons. kanban-md is designed for AI agents running commands and human supervision.
-
-- **Agents-first.** Token-efficient output formats (`--compact`), atomic claim-and-move operations (`pick --claim`), and installable agent skills that teach agents how to use the board — out of the box.
-- **Multi-agent safe.** Claims provide cooperative locking so multiple agents can work the same board without stepping on each other. Claims expire automatically, and the `pick` command atomically finds, claims, and moves the next available task.
-- **Self-healing task IDs.** Commands automatically detect duplicate IDs, filename/frontmatter ID mismatches, and `next_id` drift, then repair them before proceeding.
-- **Plain files.** Every task is a Markdown file. Agents, humans, scripts, and `grep` all work equally well. No API tokens, no authentication, no rate limits.
-- **Zero dependencies at runtime.** A single static binary. No database, no server, no config service.
-- **Skills included.** Pre-written skills for using the CLI tool and a multi-agent development workflow. Installable via `kanban-md skill install`.
-- **TUI for observation.** A full interactive terminal board with keyboard navigation. It auto-refreshes when task files change on disk.
-
-```bash
-kanban-md tui
-```
+- **Agents first.** `--compact` output saves tokens, `pick --claim` takes the
+  next task atomically, and the bundled skills teach agents to use the board.
+- **Safe with many agents.** A claim locks a task for one agent until it is
+  released or times out.
+- **Plain files.** Agents, humans, scripts and `grep` read the same Markdown.
+  No API tokens, no rate limits.
+- **Self-healing IDs.** Duplicate IDs, filename mismatches and `next_id` drift
+  are repaired before a command runs.
+- **A TUI to watch.** `kanban-md tui` shows the board live and refreshes when
+  files change.
 
 ![Interactive TUI](assets/tui-demo.gif)
 
-## Installation
-
-### Homebrew (macOS/Linux)
+## Install
 
 ```bash
-brew install antopolskiy/tap/kanban-md
+go install github.com/thegapcloser/kanban-md/cmd/kanban-md@latest
 ```
 
-### Go
-
-```bash
-go install github.com/antopolskiy/kanban-md/cmd/kanban-md@latest
-```
-
-Homebrew also installs `kbmd` as a shorthand alias for `kanban-md`.
-
-### Binary downloads
-
-Pre-built binaries for macOS, Linux, and Windows are available on the [Releases](https://github.com/antopolskiy/kanban-md/releases/latest) page.
+Pre-built binaries for macOS, Linux and Windows are on the
+[Releases](https://github.com/thegapcloser/kanban-md/releases/latest) page.
 
 ## Quick start
 
-Note: normally, you wouldn't run the CLI commands directly. Your agents will do that for you.
+```bash
+kanban-md init --name "My Project"   # creates kanban/ and offers to add it to .gitignore
+kanban-md skill install              # installs the agent skills for this project
+kanban-md create "Fix login bug" --priority critical
+kanban-md tui                        # watch the board
+```
+
+From here, agents usually run the commands. A typical agent loop:
 
 ```bash
-# Initialize a board in the current directory
-kanban-md init --name "My Project"
-
-# Create some tasks
-kanban-md create "Set up CI pipeline" --priority high --tags devops
-kanban-md create "Write API docs" --assignee alice --due 2026-03-01
-kanban-md create "Fix login bug" --status todo --priority critical
-
-# List all tasks
-kanban-md list
-
-# Filter and sort, highest priority first
-kanban-md list --status todo,in-progress --sort priority
-
-# Move a task forward
-kanban-md move 3 in-progress
-kanban-md move 3 --next
-
-# Edit a task
-kanban-md edit 2 --add-tag documentation --body "Cover all REST endpoints"
-
-# View task details
-kanban-md show 1
-
-# Done with a task
-kanban-md move 1 done
-
-# Or delete it
-kanban-md delete 3 --yes
+AGENT=$(kanban-md agent-name)
+kanban-md pick --claim "$AGENT" --status todo --move in-progress
+kanban-md edit 1 -a "Tests pass, opening PR." -t --claim "$AGENT"
+kanban-md handoff 1 --claim "$AGENT" --note "Ready for review" -t --release
 ```
+
+Start the `kanban-based-development` skill in one agent to see the full loop
+with claims, worktrees and merges. Then start it in several agents at once.
 
 ## How it works
 
-Running `kanban-md init` creates a `kanban/` directory:
+`kanban-md init` creates a `kanban/` directory:
 
 ```
 kanban/
@@ -140,10 +68,9 @@ kanban/
   tasks/
     001-set-up-ci-pipeline.md
     002-write-api-docs.md
-    003-fix-login-bug.md
 ```
 
-Each task file is standard Markdown with YAML frontmatter:
+Each task is Markdown with YAML frontmatter:
 
 ```markdown
 ---
@@ -160,877 +87,127 @@ tags:
 Optional body with more detail, context, or notes.
 ```
 
-The `config.yml` tracks board settings:
-
-```yaml
-version: 3
-board:
-  name: My Project
-tasks_dir: tasks
-statuses:
-  - backlog
-  - todo
-  - name: in-progress
-    require_claim: true
-  - name: review
-    require_claim: true
-  - done
-  - archived
-priorities:
-  - low
-  - medium
-  - high
-  - critical
-wip_limits:
-  in-progress: 3
-  review: 2
-classes:
-  - name: expedite
-    wip_limit: 1
-    bypass_column_wip: true
-  - name: fixed-date
-  - name: standard
-  - name: intangible
-claim_timeout: 1h
-defaults:
-  status: backlog
-  priority: medium
-  class: standard
-next_id: 4
-```
+Commands find the board by walking up from the current directory, like `git`
+finds `.git/`. Use `--dir PATH` to point at another board. The full
+`config.yml`, every config key and custom statuses and priorities are in
+[guide/configuration.md](guide/configuration.md).
 
 ## Commands
 
-### `init`
-
-Create a new kanban board.
-
-```bash
-kanban-md init [--name NAME] [--statuses s1,s2,s3] [--wip-limit status:N]
-```
-
-| Flag | Description |
-|------|-------------|
-| `--name` | Board name (defaults to parent directory name) |
-| `--statuses` | Comma-separated status list (default: backlog,todo,in-progress,review,done,archived) |
-| `--wip-limit` | WIP limit per status (format: `status:N`, repeatable) |
-
-After creating a board, kanban-md prompts to add the board directory (for example, `kanban/`) to `.gitignore`:
-
-- If `.gitignore` exists in the board directory parent, the entry is appended.
-- If `.gitignore` does not exist, it is created with the board directory entry.
-
-### `create`
-
-Create a new task. Aliases: `add`. Title can be provided as a positional argument or via `--title`.
-
-```bash
-kanban-md create "My task" [FLAGS]
-kanban-md create --title "My task" --description "Details here" [FLAGS]
-```
-
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--title` | | Task title (alternative to positional argument) |
-| `--status` | backlog | Initial status |
-| `--priority` | medium | Priority level |
-| `--assignee` | | Person assigned |
-| `--tags` | | Comma-separated tags |
-| `--due` | | Due date (YYYY-MM-DD) |
-| `--estimate` | | Time estimate (e.g. 4h, 2d) |
-| `--class` | standard | Class of service (expedite, fixed-date, standard, intangible) |
-| `--parent` | | Parent task ID |
-| `--child-rank` | | Order among siblings under `--parent` (lower first) |
-| `--depends-on` | | Dependency task IDs (comma-separated) |
-| `--body` | | Task description (alias: `--description`) |
-
-### `list`
-
-List tasks with filtering and sorting. Aliases: `ls`.
-
-```bash
-kanban-md list [FLAGS]
-```
-
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--status` | | Filter by status (comma-separated) |
-| `--priority` | | Filter by priority (comma-separated) |
-| `--assignee` | | Filter by assignee |
-| `--tag` | | Filter by tag |
-| `-s`, `--search` | | Search tasks by title, body, or tags (case-insensitive) |
-| `--blocked` | false | Show only blocked tasks |
-| `--not-blocked` | false | Show only non-blocked tasks |
-| `--parent` | | Filter by parent task ID |
-| `--unblocked` | false | Show only tasks with all dependencies satisfied (missing dependency IDs are treated as satisfied) |
-| `--unclaimed` | false | Show only unclaimed or expired-claim tasks |
-| `--claimed-by` | | Filter by claimant name |
-| `--class` | | Filter by class of service |
-| `--archived` | false | Show only archived tasks |
-| `--group-by` | | Group results by field (assignee, tag, class, priority, status) |
-| `--sort` | id | Sort by: id, title, status, priority, created, updated, due |
-| `-r`, `--reverse` | false | Reverse sort order |
-| `-n`, `--limit` | 0 | Max results (0 = unlimited) |
-
-### `show`
-
-Show full details of a task. When the task has direct children, the detail view
-includes their IDs, statuses, titles, and a terminal/total roll-up. Parent
-status remains independently managed; the roll-up is informational only.
-
-```bash
-kanban-md show ID
-kanban-md show ID --archived  # include archived children in the roll-up
-```
-
-| Flag | Description |
-|------|-------------|
-| `--archived` | Include archived direct children (hidden by default) |
-
-Children are ordered by child rank first and task ID second — see
-[Child rank](#child-rank). Without any ranks that is plain task-ID order,
-matching the default `list --parent` order.
-Human-readable CLI and TUI detail views prefix them with `├─` and `└─` tree
-guides so the parent-child relationship remains visually clear.
-Tasks with a direct parent show an upward relation such as
-`↑ Parent  #1 [in-progress] Parent title`; if the parent file is unavailable,
-the relationship falls back to its stored task ID.
-JSON output always contains a `children` array; compact output adds a
-`children:DONE/TOTAL done` annotation only when children are present.
-
-**Parent links stay acyclic.** `create` and `edit` reject a parent that would
-close a ring, naming the chain it would form:
-
-```
-$ kanban-md edit 2 --parent 1
-Error: parent would create a cycle (#2 → #1 → #2)
-```
-
-`depends_on` is checked the same way, since two tasks that depend on each other
-can never become unblocked. Both checks run wherever the link is written, so
-`create --parent`, `edit --parent` and `edit --add-dep` are all covered.
-
-#### Child rank
-
-Task IDs follow the order tasks were created, which is rarely the order the work
-should be read in. `child_rank` gives a parent's direct children an explicit
-order without renumbering anything:
-
-```bash
-kanban-md create "Second epic" --parent 1 --child-rank 20
-kanban-md edit 5 --child-rank 10          # move #5 to the front
-kanban-md edit 5 --clear-child-rank       # back to task-ID order
-kanban-md show 1                          # children render in rank order
-```
-
-Rules:
-
-- `child_rank` is optional and positive, and requires a `parent`.
-- Ranked children come first, ascending by rank; equal ranks fall back to task ID.
-- Children without a rank follow the ranked ones, also by task ID.
-- Leave gaps (`10, 20, 30`) so a later insert needs no renumbering.
-- Clearing the parent clears the rank with it, since the sibling group is gone.
-  Reparenting keeps it — pass a new `--child-rank` in the same `edit` to change it.
-- The rank only affects how a parent's direct children are ordered in detail
-  views. It does not touch priority, `pick`, WIP limits, or board sorting.
-
-A representative board for trying the CLI and TUI behavior is available in
-[`examples/issue-11-demo`](examples/issue-11-demo/README.md).
-
-### `edit`
-
-Modify an existing task.
-
-```bash
-kanban-md edit ID [FLAGS]
-kanban-md edit 1,2,3 --priority high  # batch edit
-
-# Replace one exact passage without rewriting the whole body
-kanban-md edit 42 \
-  --body-replace '[BLOCKED: design]' \
-  --body-with '[RESOLVED: design]'
-
-# Repeat both flags in the same order for an atomic multi-edit
-kanban-md edit 42 \
-  --body-replace 'old first passage' --body-with 'new first passage' \
-  --body-replace 'old second passage' --body-with 'new second passage'
-```
-
-Each `--body-replace` passage must occur exactly once when its pair is applied. If any pair is missing or ambiguous, the task is left unchanged. Body replacement flags cannot be combined with `--body` or `--append-body`.
-
-| Flag | Description |
-|------|-------------|
-| `--title` | New title (renames the file) |
-| `--status` | New status |
-| `--priority` | New priority |
-| `--assignee` | New assignee |
-| `--add-tag` | Add tags (comma-separated) |
-| `--remove-tag` | Remove tags (comma-separated) |
-| `--due` | New due date (YYYY-MM-DD) |
-| `--clear-due` | Remove due date |
-| `--estimate` | New time estimate |
-| `--body` | New body text (replaces entire body) |
-| `--append-body`, `-a` | Append text to task body |
-| `--body-replace` | Exact body text to replace; repeat for multiple edits |
-| `--body-with` | Replacement text paired by order with `--body-replace` |
-| `--timestamp`, `-t` | Prefix a timestamp line when appending |
-| `--started` | Set started date (YYYY-MM-DD) |
-| `--clear-started` | Clear started timestamp |
-| `--completed` | Set completed date (YYYY-MM-DD) |
-| `--clear-completed` | Clear completed timestamp |
-| `--parent` | Set parent task ID |
-| `--clear-parent` | Clear parent (also clears child rank) |
-| `--child-rank` | Set order among siblings (lower first) |
-| `--clear-child-rank` | Clear child rank |
-| `--add-dep` | Add dependency task IDs (comma-separated) |
-| `--remove-dep` | Remove dependency task IDs (comma-separated) |
-| `--block` | Mark task as blocked with reason |
-| `--unblock` | Clear blocked state |
-| `--claim` | Claim task for an agent (set claimed_by) |
-| `--release` | Release claim on task |
-| `--class` | Set class of service |
-
-### `move`
-
-Change a task's status.
-
-```bash
-kanban-md move ID [STATUS]
-kanban-md move ID --next
-kanban-md move ID --prev
-kanban-md move 1,2,3 todo          # batch move
-```
-
-| Flag | Description |
-|------|-------------|
-| `--next` | Advance to next status in the configured order |
-| `--prev` | Move back to previous status |
-| `--claim` | Claim task for an agent |
-
-### `handoff`
-
-Hand off a task for review. Moves to `review` status, appends a note, and optionally blocks/releases.
-
-```bash
-kanban-md handoff ID --claim NAME [--note TEXT] [--block REASON] [-t] [--release]
-```
-
-| Flag | Description |
-|------|-------------|
-| `--claim` | Claim name (required) |
-| `--note` | Handoff note to append to body |
-| `--timestamp`, `-t` | Prefix a timestamp line to the note |
-| `--block` | Mark task as blocked with reason |
-| `--release` | Release claim after handoff |
-
-### `delete`
-
-Delete a task. Aliases: `rm`.
-
-```bash
-kanban-md delete ID [--yes]
-kanban-md delete 1,2,3 --yes       # batch delete
-```
-
-Prompts for confirmation in interactive terminals. Use `--yes` (`-y`) to skip the prompt (required in non-interactive contexts like scripts). Batch delete always requires `--yes`.
-
-### `archive`
-
-Soft-delete a task by moving it to the `archived` status. Archived tasks are hidden from all normal commands (`list`, `board`, `metrics`, `context`, TUI) but remain on disk.
-
-```bash
-kanban-md archive ID
-kanban-md archive ID --claim agent-1  # archive a task claimed by agent-1
-kanban-md archive 1,2,3    # batch archive
-```
-
-To see archived tasks:
-
-```bash
-kanban-md list --archived
-kanban-md list --status archived
-```
-
-### `board`
-
-Show a board summary with task counts per status, WIP utilization, blocked/overdue counts, and priority distribution. Aliases: `summary`.
-
-```bash
-kanban-md board
-kanban-md board --watch    # live-update on file changes
-```
-
-| Flag | Default | Description |
-|------|---------|-------------|
-| `-w`, `--watch` | false | Live-update the board on file changes (Ctrl+C to stop) |
-| `--group-by` | | Group by field (assignee, tag, class, priority, status) |
-
-### `pick`
-
-Atomically find and claim the next available task. Designed for multi-agent workflows where agents need exclusive task assignment.
-
-```bash
-kanban-md pick --claim agent-1
-kanban-md pick --claim agent-1 --status todo --move in-progress
-kanban-md pick --claim agent-1 --tags backend
-kanban-md pick --claim agent-1 --parent 42
-kanban-md pick --claim agent-1 --no-body
-```
-
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--claim` | (required) | Agent name to claim the task for |
-| `--status` | all non-terminal | Source status(es) to pick from (comma-separated) |
-| `--move` | | Also move picked task to this status |
-| `--tags` | | Only pick tasks matching at least one tag |
-| `--parent` | | Only pick tasks that are children of this parent task ID |
-| `--no-body` | false | Show only the pick confirmation line (skip full task details) |
-
-By default, `pick` prints the one-line confirmation and then the full task details (same as `show`, including body) so agents do not need a follow-up `show` command.
-
-The pick algorithm selects from unclaimed, unblocked tasks with satisfied dependencies, prioritizing by class of service (expedite > fixed-date > standard > intangible), then by priority within each class. Fixed-date tasks are further sorted by earliest due date.
-
-### `agent-name`
-
-Generate a random two-word name for use with `--claim`. Uses the system dictionary when available, with a built-in word list as fallback.
-
-```bash
-kanban-md agent-name
-# → quiet-storm
-
-kanban-md pick --claim $(kanban-md agent-name) --status todo --move in-progress
-```
-
-### `metrics`
-
-Show flow metrics: throughput, average lead/cycle time, flow efficiency, and aging work items.
-
-```bash
-kanban-md metrics [--since YYYY-MM-DD]
-```
-
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--since` | | Only include tasks completed after this date |
-
-### `log`
-
-Show the activity log of board mutations (create, move, edit, delete, block, unblock).
-
-```bash
-kanban-md log [FLAGS]
-```
-
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--since` | | Show entries after this date (YYYY-MM-DD) |
-| `--limit` | 0 | Maximum number of entries (most recent) |
-| `--action` | | Filter by action type (create, move, edit, delete, block, unblock) |
-| `--task` | | Filter by task ID |
-
-### `config`
-
-View or modify board configuration.
-
-```bash
-kanban-md config                       # show all config values
-kanban-md config get KEY               # get a single value
-kanban-md config set KEY VALUE         # set a writable value
-```
-
-Available keys:
-
-| Key | Writable | Description |
-|-----|----------|-------------|
-| `board.name` | yes | Board name |
-| `board.description` | yes | Board description |
-| `defaults.status` | yes | Default status for new tasks |
-| `defaults.priority` | yes | Default priority for new tasks |
-| `defaults.class` | yes | Default class of service for new tasks |
-| `statuses` | no | List of statuses |
-| `priorities` | no | List of priorities |
-| `tasks_dir` | no | Tasks directory name |
-| `wip_limits` | no | WIP limits per status |
-| `claim_timeout` | yes | Claim expiration duration (e.g. `1h`, `30m`) |
-| `classes` | no | Class of service definitions |
-| `tui.title_lines` | yes | Number of title lines shown in TUI cards |
-| `tui.hide_empty_columns` | yes | Hide columns with zero tasks in TUI |
-| `tui.hierarchy_levels` | yes | Levels the TUI detail-view tree shows above and below the open task (unset = 1) |
-| `tui.age_thresholds` | no | TUI age color thresholds |
-| `next_id` | no | Next task ID |
-| `version` | no | Config schema version |
-
-### `context`
-
-Generate a markdown summary of the board state for embedding in context files (e.g. `CLAUDE.md`, `AGENTS.md`).
-
-```bash
-kanban-md context                             # print to stdout
-kanban-md context --write-to AGENTS.md        # write/update in file
-kanban-md context --sections blocked,overdue  # limit sections
-kanban-md context --days 14                   # recently completed lookback
-```
-
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--write-to` | | Write context to file (creates or updates in-place) |
-| `--sections` | all | Comma-separated section filter |
-| `--days` | 7 | Recently completed lookback in days |
-
-Available section names: `in-progress`, `blocked`, `overdue`, `recently-completed`.
-
-When using `--write-to`, the context block is wrapped in HTML comment markers (`<!-- BEGIN kanban-md context -->` / `<!-- END kanban-md context -->`). If the file already contains these markers, only the block between them is replaced — all other content is preserved.
-
-## Interactive TUI
-
-`kanban-md tui` opens a full interactive terminal board with keyboard navigation. It auto-refreshes when task files change on disk.
-If no board exists in the current directory, `kanban-md tui` can initialize one and then offers to add that board directory to `.gitignore`.
-
-```bash
-kanban-md tui             # launch from any directory with a kanban/ board
-kanban-md tui --dir PATH  # point to a specific kanban directory
-kanban-md tui --hide-empty-columns  # override config and hide empty columns
-kanban-md tui --show-empty-columns  # override config and show empty columns
-kanban-md tui --mouse      # opt in to mouse navigation
-kanban-md tui --narrow     # force the single-column layout at any width
-```
-
-Set `tui.hide_empty_columns` in `config.yml` to control the default behavior.
-
-> **Note:** Older releases shipped a standalone `kanban-md-tui` binary. It has been retired — use `kanban-md tui` instead.
-
-In create/edit dialogs, text fields support cursor-based editing (`←/→`, `Home/End`, `Backspace`, `Delete`).
-
-Opening a task shows a `Hierarchy` block: the open task with its ancestor path
-above it and its descendants below it, as one tree. A task the tree has nothing
-to show around — no reachable parent, no children, nothing cut off — has no
-block, because its own title is the header right above. Archived descendants
-remain hidden in the TUI. A board search controls which cards are visible, but
-does not hide anything from the tree of the selected task.
-
-Task bodies are rendered as Markdown using the terminal's default foreground
-for the main text, so they remain readable when a terminal switches between
-light and dark themes while the TUI is running.
-
-### The hierarchy tree
-
-The detail view shows where the open task sits in the board, as one tree. At the
-default of one level it reaches one step in each direction, and the `…` says that
-the board goes on below:
-
-```
-Hierarchy
-  └─ #1 [todo] Milestone One
-     ├─ #2 [done] Epic Two (2/2 done)
-     └─ #3 [backlog] Epic Three (0/1 done)
-     …
-```
-
-The same board with `tui.hierarchy_levels: 2` reaches the stories, and the marker
-is gone because nothing is cut off any more:
-
-```
-Hierarchy
-  └─ #1 [todo] Milestone One
-     ├─ #2 [done] Epic Two
-     │  ├─ #4 [done] Story Four
-     │  └─ #5 [done] Story Five
-     └─ #3 [backlog] Epic Three
-        └─ #6 [backlog] Story Six
-```
-
-`(x/y done)` counts direct, non-archived children in a terminal status over
-direct, non-archived children — the same number `show` reports. It stands on a
-row that does not show **all** of its counted children — one missing child is
-enough. In the first example above, one level reaches the epics but not their
-stories, so each epic carries the counter and the milestone does not, because
-both its children are right below it. At two levels nothing is left to summarize
-and no row carries a counter. An ancestor is the case in between: it shows the
-one child that continues the path to your task and hides its siblings, so it
-keeps the counter. On a board whose `parent` links form a cycle a row can keep
-its counter although the child it counts is on screen as one of its own
-ancestors; the rule looks below a row, not above it.
-
-Three states say whether a row is a link. Plain text is a row you can open. **Bold**
-text is the task you are looking at; it sits at its place in the tree and is not
-a link to itself. Dimmed text is present but not openable: an archived ancestor,
-which is shown and ends the chain there, and the `…` marker. A parent reference
-that cannot be resolved — a dangling ID or a task pointing at itself — produces
-no row at all; `show` still reports it.
-
-The `[status]` of a finished task is green: the last column of your board,
-whatever you call it. This is the same notion of "finished" that `(x/y done)`
-counts by, but not the same rule — the counter drops archived children before it
-looks at their status, so `[archived]` never reaches its numbers. The bracket stands on every row, so the signal does not depend on
-having children. A dimmed row stays fully dimmed, `[archived]` included: an
-archived ancestor is not finished, it is gone.
-
-A `…` above the tree means the ancestor path continues past the level budget, a
-`…` below it means a task on the deepest shown level still has children. Neither
-is a link. On a board whose `parent` links form a cycle the lower marker can
-appear although the cycle leaves nothing further to show.
-
-### Relation navigation
-
-Every tree row except the open task is a link. `Tab` and `Shift+Tab` walk a
-cursor through them in reading order — ancestors from the outside in, then the
-descendants — and wrap around at both ends. The cursor starts inactive, so a
-freshly opened task still reads as plain text until the first `Tab`. `Enter`
-opens the task under the cursor.
-
-`Esc` and `Backspace` go one step back and restore the screen you left: same
-task, same scroll position, same cursor row. With no history left they close the
-detail view as before. `q` always closes the whole chain at once.
-
-A row is only navigable when its task is active (not archived). Descendants are
-always navigable, even when a search or a level filter hides them from the board.
-
-Opening a relation leaves the board alone: search query, level filter and card
-selection are all unchanged when the detail view closes.
-
-### How deep the tree reaches
-
-`tui.hierarchy_levels` is the one knob for both directions:
-
-```bash
-kanban-md config set tui.hierarchy_levels 2   # two levels up and two down
-kanban-md config set tui.hierarchy_levels 0   # only the open task
-```
-
-Unset means 1 — one level up, one level down. `N` reaches N levels up **and** N
-levels down, cut off wherever the tree ends. Depth comes from the parent chain
-alone, so the setting works the same on a two-level board and on a six-level one;
-there is no maximum and no notion of milestone, epic or story behind it.
-
-`tui.hierarchy_levels` sets the depth of this tree and nothing else. The board
-itself has its own use for the same depth — the `v` level filter and
-`tui.level_colors`, see [Hierarchy levels](#hierarchy-levels) — and the two
-settings are independent.
-
-The `show` command keeps its parent line and children list unchanged. That
-divergence is deliberate: the tree is a navigation aid for the TUI, and the CLI
-output format is a contract for agents that read it.
-
-### Narrow mode (small terminals)
-
-On terminals too narrow to show every column side by side — a phone over SSH, a
-split pane — the board automatically switches to a single-column layout. It shows
-one column at a time, full width, under a two-line header: a tab strip of all
-columns (the active one highlighted) on top, and the active column's own full
-name, count, and WIP limit below. Card titles stay readable instead of being
-crushed to a few characters per column.
-
-Switch columns with `←`/`→`, `h`/`l`, or `Tab`/`Shift+Tab`. With `--mouse`, tap a
-tab to jump straight to that column; tapping a card selects it as usual.
-
-Narrow mode activates automatically once columns can no longer get a usable
-width. To force or tune it:
-
-```bash
-kanban-md tui --narrow                         # force narrow mode for this run
-kanban-md config set tui.narrow_threshold 80  # persist a custom trigger width
-```
-
-Set `tui.narrow_threshold` with `kanban-md config set` (or directly in
-`config.yml`) to override the automatic trigger — the board goes narrow below
-that terminal width. Use `0` for automatic behavior or `1` to effectively
-disable narrow mode.
-
-### Mouse mode
-
-Mouse controls are opt-in, so the normal keyboard-only TUI remains unchanged.
-Start mouse mode with:
-
-```bash
-kanban-md tui --mouse
-```
-
-| Mouse action | Result |
-|--------------|--------|
-| Click a card | Select the card and synchronize keyboard navigation |
-| Double-click the same card within 500 ms | Open its detail view |
-| Click `Back` | Go one step back in the relation history, or return to the board |
-| Wheel over a column | Activate that column and move its selection one card |
-| Wheel in a detail view | Scroll the task body three lines |
-| Click a hierarchy row in a detail view | Open that task (single click) |
-| Move the pointer over a hierarchy row | Underline it as a click target |
-| Hold a card, drag to another visible column, and release | Move the task to that status |
-
-The entire rendered destination column is a drop target, including its header,
-cards, and visible empty area. Releasing over the source column or outside a
-valid column cancels the drag. Keyboard shortcuts continue to work while mouse
-mode is active, so both input styles can be mixed freely.
-
-The board status line begins with the card count and `? help`, followed by the
-optional mouse indicator and the remaining actions. Shortcut characters are
-highlighted inside their action labels so the essential hints survive narrow
-terminal widths.
-
-Status moves made in the TUI preserve an existing task claim. If an unclaimed
-task enters a `require_claim` status, the TUI automatically claims it using the
-local hostname; that claim remains attached if the task later moves elsewhere.
-
-Hover needs to see the pointer move with no button held, so `--mouse` enables
-all-motion reporting (`1003`) rather than cell-motion reporting (`1002`). The
-terminal then reports every pointer move inside the TUI, which makes the note on
-native text selection below more relevant, not less.
-
-Terminals commonly reserve a modifier such as Shift or Option/Alt to bypass
-application mouse reporting for native text selection. The exact modifier is
-terminal-dependent; use the terminal's normal selection shortcut or omit
-`--mouse` when native selection is preferred.
-
-### Hierarchy levels
-
-A board that mixes milestones, epics and stories can be filtered to one level of
-the tree at a time. The level comes from the `parent` chain alone — a task with
-no parent is level 0, its children are level 1, and so on. With the common
-milestone → epic → story layout that makes level 0 the milestones, level 1 the
-epics, and level 2 the stories, without any extra field on the task.
-
-This filter and `tui.level_colors` below act on the board's cards. How deep the
-detail view's tree reaches is a separate setting,
-[`tui.hierarchy_levels`](#how-deep-the-tree-reaches).
-
-Press `v` to cycle the filter: all levels → level 0 only → level 1 only → … →
-back to all levels. The cycle stops at the deepest level actually present on the
-board. The status line lists the shortcut next to `sort` and doubles as the
-indicator: `level[all]` while unfiltered, `level[1]` while showing level 1.
-
-Card borders can also be colored by level, which keeps the tree readable while
-no filter is active. This is off by default:
-
-```bash
-kanban-md config set tui.level_colors true
-```
-
-With it on, each level gets its own border color and the selected card is drawn
-with a thick border instead of changing color, so its level color stays visible.
-A blocked card always keeps its red warning color; selection adds the thick border.
-Blocked cards keep their red border either way.
-
-### Keyboard shortcuts
-
-| Key | Action |
-|-----|--------|
-| `h` / `l` | Move between columns |
-| `j` / `k` | Move between tasks within a column |
-| `Enter` | View task details; in a detail view, open the relation under the cursor |
-| `Tab` / `Shift+Tab` | In a detail view, move the relation cursor forward / backward |
-| `Esc` / `Backspace` | In a detail view, go one step back in the relation history, or close it |
-| `c` | Create task in current column |
-| `e` | Edit selected task (same 4-step flow as create) |
-| `E` | Open the selected task's Markdown file in `$VISUAL`, then `$EDITOR`, then `vi` when available |
-| `m` | Move task to a different status (picker dialog) |
-| `n` / `p` | Move task to next / previous status |
-| `d` | Delete task (with confirmation) |
-| `s` | Cycle the sort field (priority → created → updated → title) |
-| `S` | Reverse the sort direction |
-| `/` | Search/filter tasks live. By default matches a case-insensitive substring of the title. Start the query with `#` to search ticket IDs instead: `#12` matches every ID beginning with `12` (e.g. #12, #121), and a trailing space (`#12 `) requires an exact match (only #12). `Enter` keeps the filter, `Esc` clears it |
-| `v` | Cycle the hierarchy level filter (all levels → level 0 → level 1 → … → all levels) |
-| `r` | Refresh board |
-| `?` | Show help |
-| `q` / `Ctrl+C` | Quit; in a detail view, `q` closes the whole relation history |
-
-## Global flags
-
-These work with any command:
-
-| Flag | Description |
-|------|-------------|
-| `--json` | Force JSON output |
-| `--table` | Force table output (default) |
-| `--compact` / `--oneline` | Compact one-line-per-record output |
-| `--dir` | Path to kanban directory (overrides auto-detection) |
-| `--no-color` | Disable color output (also respects `NO_COLOR` env var) |
-
-### Output format
-
-The default output format is **table** (human-readable). Use flags to switch:
-
-```bash
-# Default: table
-kanban-md list --status todo
-
-# Compact: one line per task, ideal for AI agents
-kanban-md list --compact
-
-# JSON: for scripting and piping
-kanban-md list --json | jq '.[].title'
-```
-
-Set the `KANBAN_OUTPUT` environment variable to change the default: `json`, `table`, `compact`, or `oneline`.
-
-Override priority: `--json`/`--table`/`--compact` flags > `KANBAN_OUTPUT` env var > table default.
-
-## Configuration
-
-kanban-md discovers its config by walking upward from the current directory, similar to how `git` finds `.git/`. This means you can run commands from any subdirectory in your project.
-
-Use `--dir` to point to a specific board:
-
-```bash
-kanban-md --dir /path/to/kanban list
-```
-
-### Custom statuses
-
-Define your own workflow columns:
-
-```bash
-kanban-md init --statuses "open,in-progress,blocked,closed"
-```
-
-The order matters — it defines the progression for `move --next` and `move --prev`, and the sort order for `list --sort status`.
-
-### Custom priorities
-
-Edit `config.yml` directly to customize priorities:
-
-```yaml
-priorities:
-  - trivial
-  - normal
-  - urgent
-  - showstopper
-defaults:
-  priority: normal
-```
-
-Priority order runs from lowest to highest. `list --sort priority` shows the
-highest configured priority first by default; use `--reverse` for lowest first.
-
-## Shell completions
-
-Generate completions for your shell:
-
-```bash
-# bash
-source <(kanban-md completion bash)
-
-# zsh
-kanban-md completion zsh > "${fpath[1]}/_kanban-md"
-
-# fish
-kanban-md completion fish | source
-
-# PowerShell
-kanban-md completion powershell | Out-String | Invoke-Expression
-```
-
-## Agent skills
-
-kanban-md ships with installable skills that teach AI agents how to use the board. Skills are auto-triggered prompt files that give agents command references, decision trees, and workflows — so they manage tasks correctly without you writing custom instructions.
-
-Two skills are included:
-
-| Skill | Description |
-|-------|-------------|
-| **kanban-md** | Command reference, decision trees, and workflows for managing tasks via CLI. Auto-triggered when an agent encounters task-related work. |
-| **kanban-based-development** | Full autonomous development workflow — multi-agent claim semantics, git worktrees for isolation, and a strict status lifecycle (in-progress → review → done). |
-
-```bash
-# Install skills for all detected agents (Claude Code, Codex, Cursor, OpenClaw)
-kanban-md skill install
-
-# Check if installed skills are up to date
-kanban-md skill check
-
-# Update skills to match current CLI version
-kanban-md skill update
-
-# Preview skill contents
-kanban-md skill show
-```
-
-Skills are versioned to match the CLI. When you upgrade kanban-md, `skill check` tells you if your installed skills are outdated, and `skill update` brings them in sync.
-
-## Multi-agent workflow
-
-kanban-md is designed for concurrent work by multiple agents (AI or human) through claims and classes of service.
+Every command documents its flags and flag rules in `kanban-md <command> --help`.
+
+| Command | Purpose |
+|---|---|
+| `init` | Create a board |
+| `create` (`add`) | Create a task |
+| `list` (`ls`) | Filter, search, sort and group tasks |
+| `show` | Show one task with its body, parent and children |
+| `edit` | Change fields, body, links, blocked state or claim |
+| `move` | Change status, directly or with `--next`/`--prev` |
+| `pick` | Claim the next available task atomically |
+| `handoff` | Move a task to review with a note, optionally block and release |
+| `archive`, `delete` (`rm`) | Soft-delete a task into `archived` |
+| `board` (`summary`) | Counts per status, WIP, blocked and overdue tasks |
+| `metrics` | Throughput, lead and cycle time, flow efficiency, aging work |
+| `log` | Activity log of board changes |
+| `context` | Board summary for `AGENTS.md` or `CLAUDE.md` |
+| `config` | Read or change board settings |
+| `agent-name` | Random two-word name for claims |
+| `skill` | Install, check and update the agent skills |
+| `tui` | Interactive terminal board |
+| `completion` | Shell completion for bash, zsh, fish and PowerShell |
+
+Output is a table by default. `--compact` prints one line per record and is
+the best format for agents. `--json` is for scripts. Set `KANBAN_OUTPUT` to
+change the default.
+
+Parents, children, child rank and dependencies, including the cycle check,
+are described in [guide/hierarchy.md](guide/hierarchy.md).
+
+## Working with several agents
 
 ### Claims
 
-Claims provide cooperative locking — an agent claims a task before working on it, preventing other agents from picking the same task. Claims expire after the configured timeout (default: 1 hour).
-
-On Unix-like systems, kanban-md also makes actively claimed task files read-only. Commands from the current claimant temporarily unlock the file while updating it, then restore read-only permissions; releasing or expiring the claim makes the file writable again. This protects against accidental direct edits by another process running as the same user, but it is not a security boundary: that user can still change permissions, rename, or delete the file.
-
-Statuses with `require_claim: true` (default: `in-progress` and `review`) enforce that every `move` or `edit` includes `--claim <name>`. This prevents accidental anonymous moves in multi-agent environments.
+An agent claims a task before it works on it. Other agents cannot pick or
+change a claimed task until the claim is released or `claim_timeout` expires
+(1 hour by default). Statuses with `require_claim: true`, by default
+`in-progress` and `review`, reject any `move` or `edit` without `--claim`.
 
 ```bash
-# Agent picks next available task
-kanban-md pick --claim agent-1 --move in-progress
-
-# Move to review (require_claim enforced — must include --claim)
-kanban-md move 5 review --claim agent-1
-
-# Agent finishes and releases
-kanban-md edit 5 --release
-kanban-md move 5 done
-
-# Another agent picks from a specific queue
-kanban-md pick --claim agent-2 --status todo --tags backend
+kanban-md pick --claim agent-1 --move in-progress   # take the next task
+kanban-md move 5 review --claim agent-1             # claim required here
+kanban-md edit 5 --release && kanban-md move 5 done # finish
 ```
 
-### Classes of service
+On Unix-like systems, a claimed task file is read-only. The claimant's
+commands unlock it for the update and lock it again. This stops accidental
+edits by another process running as the same user. It is not a security
+boundary: that user can still change permissions, rename or delete the file.
 
-Tasks can have a class of service that affects WIP limits and pick priority:
+### Classes of service and pick order
+
+`pick` chooses from unclaimed, unblocked tasks whose dependencies are done. It
+orders by class of service first, then by priority. Fixed-date tasks are also
+sorted by due date.
 
 | Class | Behavior |
-|-------|----------|
-| **expedite** | Bypasses column WIP limits. Has its own board-wide WIP limit (default: 1). Picked first. |
-| **fixed-date** | Picked by earliest due date within its priority tier. |
-| **standard** | Default class. Normal WIP and priority rules. |
-| **intangible** | Picked last. For background/maintenance work. |
+|---|---|
+| `expedite` | Picked first. Bypasses column WIP limits and has its own board-wide limit (default 1). |
+| `fixed-date` | Picked by earliest due date within its priority. |
+| `standard` | Default. Normal WIP and priority rules. |
+| `intangible` | Picked last. For background work. |
+
+`board --group-by` and `list --group-by` group tasks by assignee, tag, class,
+priority or status.
+
+## Agent skills
+
+| Skill | Use |
+|---|---|
+| `kanban-md` | Which command fits which intent, claims on shared boards, safe body edits and shell pitfalls |
+| `kanban-based-development` | Autonomous development loop with claims, git worktrees and a strict status lifecycle |
 
 ```bash
-kanban-md create "Critical hotfix" --class expedite --priority critical
-kanban-md create "Q2 deadline feature" --class fixed-date --due 2026-06-30
+kanban-md skill install            # for all detected agents in this project
+kanban-md skill install --global   # in your home directory
+kanban-md skill check              # are the installed skills current?
+kanban-md skill update             # bring them in line with this binary
 ```
 
-### Swimlanes
+Skills carry the CLI version. After an upgrade, `skill check` reports outdated
+copies and `skill update` replaces them.
 
-Group board or list views by any field to see work distribution:
+## Interactive TUI
 
-```bash
-kanban-md board --group-by assignee     # who is working on what
-kanban-md board --group-by class        # class of service breakdown
-kanban-md list --group-by tag           # work by tag
-kanban-md list --group-by priority      # priority distribution
-```
+`kanban-md tui` opens the board with keyboard navigation, create and edit
+dialogs, search, a hierarchy tree in the detail view, optional mouse support
+and a narrow layout for small terminals. Press `?` for the key bindings. Details
+are in [guide/tui.md](guide/tui.md).
 
 ## Design principles
 
-**Agent-first, human-friendly.** Every feature is designed to work in non-interactive, piped, multi-agent contexts first. Humans get a TUI and table output; agents get `--compact` (70% fewer tokens than JSON) and atomic operations like `pick --claim`.
-
-**Files are the API.** The CLI is a convenience layer over a simple file format. You can always fall back to editing files directly — the tool will pick up changes.
-
-**No hidden state.** Everything is in `config.yml` and the task files. There's no database, no cache, no lock file. Two agents can work on the same board by editing different files and merging via git.
-
-**Minimal by default.** The core CLI does one thing — manage task files — and stays out of the way. The interactive TUI is built in (`kanban-md tui`). The tool doesn't sync, notify, or integrate with external services. Git handles collaboration; file watchers handle live updates.
+- **Agent first, human friendly.** Every feature works non-interactively and in
+  pipes first. Humans get the TUI and tables.
+- **Files are the format.** The CLI is a layer over plain files. Use the CLI to
+  change tasks, because it keeps IDs, timestamps, claims and the activity log
+  consistent.
+- **No hidden state.** Everything lives in `config.yml` and the task files. Git
+  handles collaboration.
+- **Minimal.** The tool manages task files. It does not sync, notify or call
+  external services.
 
 ## Development
 
 ```bash
-# Build
-make build
-
-# Run all tests (unit + e2e)
-make test
-
-# Run only e2e tests
-make test-e2e
-
-# Lint
-make lint
-
-# Lint with autofix
-make lint-fix
-
-# Full pipeline
-make all
+make build      # build dist/kanban-md
+make test       # unit and e2e tests
+make lint       # golangci-lint
+make all        # full pipeline
 ```
 
-## License
+CI pins Go 1.25 and golangci-lint v2.10.1.
 
-[MIT](LICENSE)
+## Origin and license
+
+This project continues [antopolskiy/kanban-md](https://github.com/antopolskiy/kanban-md)
+as an independent project. [MIT](LICENSE).
