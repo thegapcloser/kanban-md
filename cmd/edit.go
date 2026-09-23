@@ -19,7 +19,11 @@ var editCmd = &cobra.Command{
 	Use:   "edit ID[,ID,...]",
 	Short: "Edit a task",
 	Long: `Modifies fields of an existing task. Only specified fields are changed.
-Multiple IDs can be provided as a comma-separated list.`,
+Multiple IDs can be provided as a comma-separated list.
+
+Body edits use exactly one mode per call: --body, --append-body, or
+--body-replace with --body-with. To replace a passage and append a note,
+run edit twice. A failed replacement leaves the task unchanged.`,
 	Args: cobra.ExactArgs(1),
 	RunE: runEdit,
 }
@@ -34,10 +38,10 @@ func init() {
 	editCmd.Flags().String("due", "", "new due date (YYYY-MM-DD)")
 	editCmd.Flags().Bool("clear-due", false, "clear due date")
 	editCmd.Flags().String("estimate", "", "new time estimate")
-	editCmd.Flags().String("body", "", "new body text (replaces entire body)")
-	editCmd.Flags().StringP("append-body", "a", "", "append text to task body")
-	editCmd.Flags().StringArray("body-replace", nil, "exact body text to replace (repeat with --body-with)")
-	editCmd.Flags().StringArray("body-with", nil, "replacement body text paired with --body-replace")
+	editCmd.Flags().String("body", "", "replace the entire body (one body mode per call)")
+	editCmd.Flags().StringP("append-body", "a", "", "append text to the body (one body mode per call)")
+	editCmd.Flags().StringArray("body-replace", nil, "exact passage to replace, must occur once; repeat with --body-with for several (one body mode per call)")
+	editCmd.Flags().StringArray("body-with", nil, "replacement text for the --body-replace at the same position")
 	editCmd.Flags().BoolP("timestamp", "t", false, "prefix a timestamp line when appending")
 	editCmd.Flags().String("started", "", "set started date (YYYY-MM-DD)")
 	editCmd.Flags().Bool("clear-started", false, "clear started timestamp")

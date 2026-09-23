@@ -19,6 +19,8 @@ var moveCmd = &cobra.Command{
 	Short: "Move a task to a different status",
 	Long: `Changes the status of a task. Provide the new status directly,
 or use --next/--prev to move along the configured status order.
+A given STATUS takes precedence over --next/--prev. --next fails at the
+last status and --prev at the first.
 Multiple IDs can be provided as a comma-separated list.`,
 	Args: cobra.RangeArgs(1, 2), //nolint:mnd // 1 or 2 positional args
 	RunE: runMove,

@@ -22,6 +22,7 @@ var deleteCmd = &cobra.Command{
 	Aliases: []string{"rm"},
 	Short:   "Delete a task",
 	Long: `Soft-deletes a task by moving it to archived status. Prompts for confirmation in interactive mode.
+Without a terminal, the command fails unless --yes is given.
 Multiple IDs can be provided as a comma-separated list (requires --yes).`,
 	Args: cobra.ExactArgs(1),
 	RunE: runDelete,
