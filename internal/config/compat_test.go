@@ -635,11 +635,8 @@ func TestCompatV9ConfigMigratesToV10(t *testing.T) {
 }
 
 func TestCompatV10ConfigMigratesToV11(t *testing.T) {
-	const wantVersion = 11
-	if CurrentVersion != wantVersion {
-		t.Fatalf("CurrentVersion = %d, want %d for narrow_threshold schema", CurrentVersion, wantVersion)
-	}
-
+	// The fixture is migrated all the way to the current version; what this
+	// test pins is that the v10 fields survive the chain.
 	tmp := t.TempDir()
 	fixture := filepath.Join("testdata", "compat", "v10")
 	copyDir(t, fixture, tmp)
@@ -648,8 +645,8 @@ func TestCompatV10ConfigMigratesToV11(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load() v10 fixture: %v", err)
 	}
-	if cfg.Version != wantVersion {
-		t.Errorf("Version = %d, want %d (after migration)", cfg.Version, wantVersion)
+	if cfg.Version != CurrentVersion {
+		t.Errorf("Version = %d, want %d (after migration)", cfg.Version, CurrentVersion)
 	}
 	if cfg.Board.Name != "Test Project v10" {
 		t.Errorf("Board.Name = %q, want %q", cfg.Board.Name, "Test Project v10")
@@ -659,6 +656,70 @@ func TestCompatV10ConfigMigratesToV11(t *testing.T) {
 	}
 	if cfg.TUI.NarrowThreshold != 0 {
 		t.Errorf("TUI.NarrowThreshold = %d, want automatic default 0", cfg.TUI.NarrowThreshold)
+	}
+}
+
+func TestCompatV11ConfigMigratesToV12(t *testing.T) {
+	// A v11 fixture is migrated all the way to the current version, so the
+	// assertion is on CurrentVersion; what this test still pins is that the
+	// v11 fields survive the chain that starts with the level_colors step.
+	tmp := t.TempDir()
+	fixture := filepath.Join("testdata", "compat", "v11")
+	copyDir(t, fixture, tmp)
+
+	cfg, err := Load(tmp)
+	if err != nil {
+		t.Fatalf("Load() v11 fixture: %v", err)
+	}
+	if cfg.Version != CurrentVersion {
+		t.Errorf("Version = %d, want %d (after migration)", cfg.Version, CurrentVersion)
+	}
+	if cfg.Board.Name != "Test Project v11" {
+		t.Errorf("Board.Name = %q, want %q", cfg.Board.Name, "Test Project v11")
+	}
+	if !cfg.TUI.HideEmptyColumns {
+		t.Error("TUI.HideEmptyColumns = false, want preserved true")
+	}
+	if cfg.TUI.LevelColors {
+		t.Error("TUI.LevelColors = true, want default false so existing boards look unchanged")
+	}
+}
+
+func TestCompatV12ConfigMigratesToV13(t *testing.T) {
+	const wantVersion = 13
+	if CurrentVersion != wantVersion {
+		t.Fatalf("CurrentVersion = %d, want %d for hierarchy_levels schema", CurrentVersion, wantVersion)
+	}
+
+	tmp := t.TempDir()
+	fixture := filepath.Join("testdata", "compat", "v12")
+	copyDir(t, fixture, tmp)
+
+	cfg, err := Load(tmp)
+	if err != nil {
+		t.Fatalf("Load() v12 fixture: %v", err)
+	}
+	if cfg.Version != wantVersion {
+		t.Errorf("Version = %d, want %d (after migration)", cfg.Version, wantVersion)
+	}
+	if cfg.Board.Name != "Test Project v12" {
+		t.Errorf("Board.Name = %q, want %q", cfg.Board.Name, "Test Project v12")
+	}
+	if !cfg.TUI.HideEmptyColumns {
+		t.Error("TUI.HideEmptyColumns = false, want preserved true")
+	}
+	if !cfg.TUI.LevelColors {
+		t.Error("TUI.LevelColors = false, want preserved true")
+	}
+	if cfg.TUI.NarrowThreshold != 100 {
+		t.Errorf("TUI.NarrowThreshold = %d, want preserved 100", cfg.TUI.NarrowThreshold)
+	}
+	if cfg.TUI.HierarchyLevels != nil {
+		t.Errorf("TUI.HierarchyLevels = %d, want unset so the config file stays unchanged",
+			*cfg.TUI.HierarchyLevels)
+	}
+	if got := cfg.HierarchyLevels(); got != DefaultHierarchyLevels {
+		t.Errorf("HierarchyLevels() = %d, want the default %d", got, DefaultHierarchyLevels)
 	}
 }
 

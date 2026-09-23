@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -14,8 +13,6 @@ import (
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/glamour"
-	glamourstyles "github.com/charmbracelet/glamour/styles"
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/antopolskiy/kanban-md/internal/board"
@@ -49,6 +46,7 @@ const (
 	keyDown     = "down"
 	keyUp       = "up"
 	keyEnter    = "enter"
+	keyTab      = "tab"
 	keyShiftTab = "shift+tab"
 	keyHome     = "home"
 	keyEnd      = "end"
@@ -107,9 +105,25 @@ type Board struct {
 	searchInput textinput.Model // input shown while typing the query
 	searchReady bool
 
-	// Detail view.
+	// Hierarchy level filter. The zero value shows every level, so a Board
+	// built as a struct literal is unfiltered without further setup.
+	levelFilterOn bool
+	levelFilter   int         // hierarchy depth to show while levelFilterOn
+	taskDepths    map[int]int // hierarchy depth per task ID, rebuilt on every load
+
+	// hierarchyIndex answers parent, child and depth questions about allTasks
+	// without scanning it, rebuilt on every load. rebuildHierarchyIndex is its
+	// only build site, so a path that changes allTasks has one call to make.
+	hierarchyIndex *board.HierarchyIndex
+
+	// Detail view. The zero value means "no relation cursor", so every path
+	// that opens the detail view starts with the cursor inactive.
 	detailTask      *task.Task
 	detailScrollOff int
+	detailCursorOn  bool
+	detailCursor    int
+	detailStack     []detailFrame
+	mdCache         markdownMemo
 
 	// Move view.
 	moveStatuses []string
@@ -222,7 +236,11 @@ func (b *Board) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		b.invalidatePointerState()
 		return b.handleKey(msg)
 	case tea.MouseMsg:
-		b.err = nil
+		// All-motion reporting delivers an event per pointer move. Those must
+		// not count as input, or an error toast would vanish on mouse wiggle.
+		if !isHoverMotion(tea.MouseEvent(msg)) {
+			b.err = nil
+		}
 		return b.handleMouse(tea.MouseEvent(msg))
 	case tea.WindowSizeMsg:
 		b.invalidatePointerState()
@@ -322,9 +340,9 @@ func (b *Board) handleBoardKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		b.view = viewHelp
 	case "h", keyLeft, "l", keyRight, "j", keyDown, "k", keyUp:
 		b.handleNavigation(msg.String())
-	case "tab":
+	case keyTab:
 		b.handleNavigation("l")
-	case "shift+tab":
+	case keyShiftTab:
 		b.handleNavigation("h")
 	case keyEnter:
 		b.handleEnter()
@@ -366,10 +384,39 @@ func (b *Board) handleBoardActionKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		b.reloadKeepingSelection()
 	case "/":
 		b.handleSearchStart()
+	case "v":
+		b.cycleLevelFilter()
 	case "ctrl+d":
 		b.view = viewDebug
 	}
 	return b, nil
+}
+
+// cycleLevelFilter advances the hierarchy level filter: all levels, then each
+// depth present on the board in turn, then back to all levels. Depths come from
+// the parent chain, so level 0 is the top of the tree (typically milestones),
+// level 1 its children (epics), and so on.
+func (b *Board) cycleLevelFilter() {
+	switch {
+	case !b.levelFilterOn:
+		b.levelFilterOn = true
+		b.levelFilter = 0
+	case b.levelFilter >= board.MaxDepth(b.taskDepths):
+		b.levelFilterOn = false
+		b.levelFilter = 0
+	default:
+		b.levelFilter++
+	}
+	b.reloadKeepingSelection()
+}
+
+// levelFilterLabel renders the active hierarchy level for the status bar:
+// the depth while the filter is on, "all" while it is off.
+func (b *Board) levelFilterLabel() string {
+	if !b.levelFilterOn {
+		return "all"
+	}
+	return strconv.Itoa(b.levelFilter)
 }
 
 // cycleSortField advances the sort field to the next entry in sortFields
@@ -503,10 +550,15 @@ func (b *Board) handleNavigation(k string) {
 	}
 }
 
+// handleEnter opens the detail view of the selected board card. Entering from
+// the board starts a fresh relation history.
 func (b *Board) handleEnter() {
 	if t := b.selectedTask(); t != nil {
 		b.detailTask = t
 		b.detailScrollOff = 0
+		b.detailCursorOn = false
+		b.detailCursor = 0
+		b.detailStack = nil
 		b.view = viewDetail
 		b.invalidatePointerState()
 	}
@@ -613,7 +665,7 @@ func (b *Board) handleCreateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	// Tab advances to next step.
-	if msg.String() == "tab" {
+	if msg.String() == keyTab {
 		if b.createStep < stepCount-1 {
 			b.createStep++
 		}
@@ -871,10 +923,10 @@ func (b *Board) selectTaskByID(id int) {
 
 func (b *Board) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "q", keyEsc, "backspace":
-		b.view = viewBoard
-		b.detailTask = nil
-		b.detailScrollOff = 0
+	case "q":
+		b.closeDetail()
+	case keyEsc, "backspace":
+		b.backOrCloseDetail()
 	case "j", keyDown:
 		b.detailScrollOff++
 	case "k", keyUp:
@@ -886,6 +938,12 @@ func (b *Board) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "G":
 		// Set to large value; viewDetail will clamp it.
 		b.detailScrollOff = maxScrollOff
+	case keyTab:
+		b.moveDetailCursor(1)
+	case keyShiftTab:
+		b.moveDetailCursor(-1)
+	case keyEnter:
+		b.openCursorRelation()
 	}
 	return b, nil
 }
@@ -951,13 +1009,9 @@ func (b *Board) loadTasks() {
 	}
 	b.unfilteredTasks = activeTasks
 
-	var visibleTasks []*task.Task
-	for _, t := range activeTasks {
-		if !matchesFilter(t, b.filterQuery) {
-			continue
-		}
-		visibleTasks = append(visibleTasks, t)
-	}
+	b.rebuildHierarchyIndex()
+
+	visibleTasks := b.applyBoardFilters(activeTasks)
 	b.tasks = visibleTasks
 
 	// Sort tasks by the active sort key.
@@ -1002,6 +1056,33 @@ func (b *Board) loadTasks() {
 	b.clampRow()
 }
 
+// rebuildHierarchyIndex indexes allTasks and refreshes the depths derived from
+// it. It is the only build site of the index, so every path that changes
+// allTasks outside loadTasks has exactly one call to make.
+//
+// Depths come from all tasks, archived ones included: an archived parent still
+// determines how deep its children sit in the tree.
+func (b *Board) rebuildHierarchyIndex() {
+	b.hierarchyIndex = board.NewHierarchyIndex(b.allTasks)
+	b.taskDepths = b.hierarchyIndex.Depths()
+}
+
+// applyBoardFilters narrows active tasks to those passing the search query and
+// the hierarchy level filter.
+func (b *Board) applyBoardFilters(activeTasks []*task.Task) []*task.Task {
+	var visible []*task.Task
+	for _, t := range activeTasks {
+		if !matchesFilter(t, b.filterQuery) {
+			continue
+		}
+		if b.levelFilterOn && b.taskDepths[t.ID] != b.levelFilter {
+			continue
+		}
+		visible = append(visible, t)
+	}
+	return visible
+}
+
 // refreshDetailTask updates the detail view task pointer after a reload.
 // If the task was deleted or moved to an archived status, it closes the detail view.
 func (b *Board) refreshDetailTask() {
@@ -1015,10 +1096,9 @@ func (b *Board) refreshDetailTask() {
 			return
 		}
 	}
-	// Task no longer visible (deleted or archived) — close detail view.
-	b.view = viewBoard
-	b.detailTask = nil
-	b.detailScrollOff = 0
+	// Task no longer visible (deleted or archived) — fall back to the task the
+	// user came from instead of throwing them out of the detail view.
+	b.backOrCloseDetail()
 }
 
 func (b *Board) currentColumn() *column {
@@ -1405,6 +1485,16 @@ var (
 				BorderForeground(lipgloss.Color("196")).
 				Padding(0, 1).
 				MarginBottom(0)
+
+	// levelBorderColors maps hierarchy depth to a card border color, indexed by
+	// depth. Deeper levels reuse the last entry. The colors stay clear of the
+	// red used for blocked cards.
+	levelBorderColors = []lipgloss.Color{
+		lipgloss.Color("212"), // depth 0 — top of the tree (milestones)
+		lipgloss.Color("117"), // depth 1 — epics
+		lipgloss.Color("114"), // depth 2 — stories
+		lipgloss.Color("244"), // depth 3 and deeper
+	}
 
 	statusBarStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("241"))
@@ -1871,16 +1961,52 @@ func (b *Board) renderCard(t *task.Task, active bool, width int) string {
 	contentLines := b.cardContentLines(t, width)
 	content := strings.Join(contentLines, "\n")
 
-	// Pick style.
-	style := cardStyle
+	style := b.cardBorderStyle(t, active)
+
+	return style.Width(width - 2).Render(content) //nolint:mnd // border width
+}
+
+// cardBorderStyle picks a card's border style.
+//
+// With tui.level_colors off the border follows the original scheme: grey,
+// lilac while selected, red while blocked. With it on, hierarchy depth colors
+// the border and selection switches to a thick border instead, so the depth
+// color of the selected card stays readable. Blocked always wins the color,
+// because it is a warning rather than a classification.
+func (b *Board) cardBorderStyle(t *task.Task, active bool) lipgloss.Style {
+	if !b.cfg.TUI.LevelColors {
+		switch {
+		case t.Blocked && active:
+			return blockedCardStyle.Border(lipgloss.ThickBorder())
+		case t.Blocked:
+			return blockedCardStyle
+		case active:
+			return activeCardStyle
+		default:
+			return cardStyle
+		}
+	}
+
+	style := cardStyle.BorderForeground(levelBorderColor(b.taskDepths[t.ID]))
 	if t.Blocked {
 		style = blockedCardStyle
 	}
 	if active {
-		style = activeCardStyle
+		style = style.Border(lipgloss.ThickBorder())
 	}
+	return style
+}
 
-	return style.Width(width - 2).Render(content) //nolint:mnd // border width
+// levelBorderColor returns the card border color for a hierarchy depth,
+// clamping depths beyond the palette to its last entry.
+func levelBorderColor(depth int) lipgloss.Color {
+	if depth < 0 {
+		depth = 0
+	}
+	if depth >= len(levelBorderColors) {
+		depth = len(levelBorderColors) - 1
+	}
+	return levelBorderColors[depth]
 }
 
 func (b *Board) cardHeight(t *task.Task, width int) int {
@@ -2109,6 +2235,7 @@ func (b *Board) renderStatusBar() string {
 		{"+/-", "priority"},
 		{"d", "delete"},
 		{"s", fmt.Sprintf("sort[%s%s]", b.sortField, arrow)},
+		{"v", fmt.Sprintf("level[%s]", b.levelFilterLabel())},
 		{"/", "search"},
 		{"q", "quit"},
 	}
@@ -2188,184 +2315,6 @@ func renderStatusBarParts(parts []statusBarPart, width int) string {
 	return rendered.String()
 }
 
-func (b *Board) viewDetail() string {
-	t := b.detailTask
-	if t == nil {
-		return "No task selected."
-	}
-
-	lines := b.detailLines(t)
-
-	// Reserve space for the blank separator line and the fixed status hint.
-	viewHeight := b.height - 2 //nolint:mnd // 2 = blank line + hint line
-	if viewHeight < 1 {
-		viewHeight = len(lines)
-	}
-
-	// Build the status hint (always visible at bottom).
-	hint := "q/esc:back"
-	if len(lines) > viewHeight {
-		hint += "  j/k:scroll  g/G:top/bottom"
-	}
-
-	// Apply viewport scrolling and clamp stored offset so subsequent key
-	// presses start from the correct position (prevents overshoot past end).
-	off := b.detailScrollOff
-	maxOff := len(lines) - viewHeight
-	if maxOff < 0 {
-		maxOff = 0
-	}
-	if off > maxOff {
-		off = maxOff
-		b.detailScrollOff = off
-	}
-
-	end := off + viewHeight
-	if end > len(lines) {
-		end = len(lines)
-	}
-
-	visible := strings.Join(lines[off:end], "\n")
-	if !b.mouseEnabled {
-		return visible + "\n\n" + dimStyle.Render(hint)
-	}
-
-	hint = "← Back  " + hint
-	renderedLines := end - off
-	if renderedLines < viewHeight {
-		visible += strings.Repeat("\n", viewHeight-renderedLines)
-	}
-	backWidth := min(lipgloss.Width("← Back"), b.width)
-	if backWidth > 0 && b.height > 0 {
-		b.layout.back = &backTarget{
-			rect: rect{x0: 0, y0: b.height - 1, x1: backWidth, y1: b.height},
-		}
-	}
-	return visible + "\n\n" + dimStyle.Render(truncate(hint, b.width))
-}
-
-func (b *Board) detailLines(t *task.Task) []string {
-	parent := board.FindParent(b.allTasks, t)
-	children := board.SummarizeChildren(b.unfilteredTasks, t.ID, b.cfg, false)
-	return detailLinesWithRelations(t, parent, children, b.width)
-}
-
-func detailLinesWithRelations(
-	t *task.Task,
-	parent *board.ParentTask,
-	children board.ChildSummary,
-	width int,
-) []string {
-	var lines []string
-	header := fmt.Sprintf("Task #%d: %s", t.ID, t.Title)
-	// Word-wrap the header so long titles fit within the available terminal width.
-	boldStyle := lipgloss.NewStyle().Bold(true)
-	for _, l := range wrapTitle(header, width, noLineLimit) {
-		lines = append(lines, boldStyle.Render(l))
-	}
-	// Separator: as wide as the header, capped at terminal width.
-	sepWidth := lipgloss.Width(header)
-	if sepWidth > width {
-		sepWidth = width
-	}
-	lines = append(lines, strings.Repeat("─", sepWidth))
-	lines = append(lines, "")
-	lines = append(lines, detailLabelStyle.Render("Status:")+"  "+t.Status)
-	lines = append(lines, detailLabelStyle.Render("Priority:")+"  "+t.Priority)
-	lines = append(lines, detailMetadataLines(t)...)
-	lines = append(lines, detailTimestampLines(t)...)
-	if t.Blocked {
-		lines = append(lines, "")
-		lines = append(lines, errorStyle.Render("BLOCKED: "+t.BlockReason))
-	}
-	if t.Parent != nil {
-		lines = append(lines, "")
-		lines = append(lines, wrapTitle(parentRelationLine(*t.Parent, parent), width, noLineLimit)...)
-	}
-	if children.Total() > 0 {
-		lines = append(lines, "")
-		heading := fmt.Sprintf("Children (%d/%d done)", children.Done, children.Total())
-		lines = append(lines, lipgloss.NewStyle().Bold(true).Render(heading))
-		for i, child := range children.Children {
-			branch := "├─"
-			if i == len(children.Children)-1 {
-				branch = "└─"
-			}
-			line := fmt.Sprintf("%s #%d [%s] %s", branch, child.ID, child.Status, child.Title)
-			lines = append(lines, wrapTitle(line, width, noLineLimit)...)
-		}
-	}
-	if t.Body != "" {
-		lines = append(lines, "")
-		body := unescapeBody(t.Body)
-		rendered := renderMarkdown(body, width)
-		lines = append(lines, strings.Split(rendered, "\n")...)
-	}
-	return lines
-}
-
-// intraWordHyphen matches a hyphen between two word characters (inside compound
-// words like "chunk-index-eval"), but not markdown syntax like "- list item".
-var intraWordHyphen = regexp.MustCompile(`(\w)-(\w)`) //nolint:gochecknoglobals // compiled regex
-
-// nonBreakingHyphen (U+2011) looks identical to a regular hyphen but is not
-// treated as a line-break opportunity by word-wrap algorithms.
-const nonBreakingHyphen = "\u2011"
-
-// renderMarkdown renders body text as terminal-friendly markdown using glamour.
-// Single newlines are preserved as hard line breaks via WithPreservedNewLines.
-// Intra-word hyphens are temporarily replaced with non-breaking hyphens to
-// prevent glamour's word wrapper from creating short orphan line fragments.
-func renderMarkdown(body string, width int) string {
-	return renderMarkdownForBackground(body, width, lipgloss.HasDarkBackground())
-}
-
-func renderMarkdownForBackground(body string, width int, darkBackground bool) string {
-	// Pre-process: protect intra-word hyphens from line breaking.
-	body = intraWordHyphen.ReplaceAllString(body, "${1}"+nonBreakingHyphen+"${2}")
-
-	style := glamourstyles.LightStyleConfig
-	if darkBackground {
-		style = glamourstyles.DarkStyleConfig
-	}
-	// Keep the document foreground tied to the terminal default instead of
-	// baking in the palette's light or dark body color. Terminals update their
-	// default foreground when their theme changes, so an already-running TUI
-	// stays readable even though Lip Gloss caches its background detection.
-	style.Document.Color = nil
-
-	r, err := glamour.NewTermRenderer(
-		glamour.WithStyles(style),
-		glamour.WithWordWrap(width),
-		glamour.WithPreservedNewLines(),
-	)
-	if err != nil {
-		return lipgloss.NewStyle().Width(width).Render(body)
-	}
-	out, err := r.Render(body)
-	if err != nil {
-		return lipgloss.NewStyle().Width(width).Render(body)
-	}
-
-	// Post-process: restore regular hyphens.
-	out = strings.ReplaceAll(out, nonBreakingHyphen, "-")
-
-	return strings.TrimRight(out, "\n")
-}
-
-// unescapeBody replaces literal escape sequences in body text with their
-// corresponding whitespace characters. This handles bodies set via CLI flags
-// where \n and \t are passed as literal two-character sequences.
-func unescapeBody(s string) string {
-	r := strings.NewReplacer(
-		`\n`, "\n",
-		`\t`, "\t",
-		`\r`, "",
-		`\\`, `\`,
-	)
-	return r.Replace(s)
-}
-
 // detailMetadataLines renders optional metadata fields (class, assignee, tags, relations, etc.).
 func detailMetadataLines(t *task.Task) []string {
 	var lines []string
@@ -2392,13 +2341,6 @@ func detailMetadataLines(t *task.Task) []string {
 		lines = append(lines, detailLabelStyle.Render("Estimate:")+"  "+t.Estimate)
 	}
 	return lines
-}
-
-func parentRelationLine(parentID int, parent *board.ParentTask) string {
-	if parent == nil {
-		return fmt.Sprintf("↑ Parent  #%d", parentID)
-	}
-	return fmt.Sprintf("↑ Parent  #%d [%s] %s", parent.ID, parent.Status, parent.Title)
 }
 
 // detailTimestampLines renders timestamps and claim info.
@@ -2588,10 +2530,15 @@ func (b *Board) viewHelp() string {
 	help := []struct{ key, desc string }{
 		{"←/h", "Move to left column"},
 		{"→/l", "Move to right column"},
-		{"tab", "Next column (shift+tab: previous)"},
+		{keyTab, "Next column (shift+tab: previous)"},
 		{"↓/j", "Move cursor down"},
 		{"↑/k", "Move cursor up"},
 		{"enter", "Show task detail"},
+		{keyTab, "Detail view: next relation (shift+tab: previous)"},
+		{keyEnter, "Detail view: open the relation under the cursor"},
+		{keyEsc, "Detail view: back one task, or close if history is empty"},
+		{"backspace", "Detail view: back one task, same as esc"},
+		{"q", "Detail view: close and forget the relation history"},
 		{"c", "Create new task in column"},
 		{"e", "Edit selected task (same flow as create)"},
 		{"E", "Open selected task in $VISUAL, $EDITOR, or vi"},
@@ -2604,6 +2551,7 @@ func (b *Board) viewHelp() string {
 		{"s", "Cycle sort field (priority/created/updated/title)"},
 		{"S", "Reverse sort direction"},
 		{"/", "Search by title, or by ID with #12 (trailing space = exact)"},
+		{"v", "Cycle hierarchy level filter (all / 0 / 1 / ...)"},
 		{"r", "Refresh board"},
 		{"?", "Show this help"},
 		{"esc/q", "Quit"},
@@ -2614,6 +2562,8 @@ func (b *Board) viewHelp() string {
 			struct{ key, desc string }{"click", "Select task; double-click opens detail"},
 			struct{ key, desc string }{"drag", "Release a card over another column to move it"},
 			struct{ key, desc string }{"wheel", "Move selection or scroll task detail"},
+			struct{ key, desc string }{"hover", "Detail view: underline the relation under the pointer"},
+			struct{ key, desc string }{"click", "Detail view: open a relation in one click"},
 		)
 	}
 

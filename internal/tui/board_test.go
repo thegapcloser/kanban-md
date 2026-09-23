@@ -19,6 +19,7 @@ import (
 
 const (
 	statusTodo       = "todo"
+	statusDone       = "done"
 	priorityCritical = "critical"
 	viewLoading      = "Loading..."
 )
@@ -58,7 +59,7 @@ func setupTestBoard(t *testing.T) (*tui.Board, *config.Config) {
 		{1, "Task A", "backlog", "high"},
 		{2, "Task B", "backlog", "medium"},
 		{3, "Task C", "in-progress", "high"},
-		{4, "Task D", "done", "low"},
+		{4, "Task D", statusDone, "low"},
 	}
 
 	for _, tt := range tasks {
@@ -867,7 +868,7 @@ func TestBoard_ScrollHeaderVisible(t *testing.T) {
 	}
 
 	// Header row should be the first line and contain all column names.
-	if len(lines) > 0 && !containsStr(lines[0], "done") {
+	if len(lines) > 0 && !containsStr(lines[0], statusDone) {
 		t.Errorf("expected 'done' header on first line, got %q", lines[0])
 	}
 }
@@ -1210,7 +1211,6 @@ func TestBoard_DetailShowsAllMetadata(t *testing.T) {
 		{"Due", "2026-03-15"},
 		{"Estimate", "2h"},
 		{"Class", "expedite"},
-		{"Parent", "↑ Parent  #42"},
 		{"DependsOn", "#10"},
 		{"DependsOn2", "#20"},
 		{"ClaimedBy", "agent-1"},
@@ -1228,6 +1228,12 @@ func TestBoard_DetailShowsAllMetadata(t *testing.T) {
 	}
 	if containsStr(v, "Parent:") {
 		t.Errorf("detail view should replace the old parent metadata field:\n%s", v)
+	}
+	// The parent reference points at #42, which does not exist. An unresolvable
+	// reference produces no tree row, which leaves a one-row tree, which is not
+	// shown at all.
+	if containsStr(v, "Hierarchy") {
+		t.Errorf("a dangling parent reference produced a hierarchy block:\n%s", v)
 	}
 }
 
@@ -1252,7 +1258,7 @@ func setupParentChildrenBoard(t *testing.T) *tui.Board {
 	archivedParentID := 4
 	tasks := []*task.Task{
 		{ID: 1, Title: "Epic Alpha", Status: "backlog", Priority: "critical", Updated: testRefTime},
-		{ID: 3, Title: "Done child", Status: "done", Priority: "medium", Parent: &parentID, Updated: testRefTime},
+		{ID: 3, Title: "Done child", Status: statusDone, Priority: "medium", Parent: &parentID, Updated: testRefTime},
 		{ID: 2, Title: "Backlog child", Status: "backlog", Priority: "low", Parent: &parentID, Updated: testRefTime},
 		{ID: 4, Title: "Archived child", Status: "archived", Priority: "medium", Parent: &parentID, Updated: testRefTime},
 		{ID: 5, Title: "Grandchild", Status: "todo", Priority: "medium", Parent: &childID, Updated: testRefTime},
@@ -1271,14 +1277,14 @@ func setupParentChildrenBoard(t *testing.T) *tui.Board {
 	return b
 }
 
-func TestBoard_DetailShowsResolvedParentAsUpwardRelation(t *testing.T) {
+func TestBoard_DetailShowsResolvedParentAsAncestorRow(t *testing.T) {
 	b := setupParentChildrenBoard(t)
 	b = sendKey(b, "j") // select task #2 beneath its parent in backlog
 	b = sendSpecialKey(b, tea.KeyEnter)
 	v := b.View()
 
-	if !containsStr(v, "↑ Parent  #1 [backlog] Epic Alpha") {
-		t.Errorf("detail view missing resolved parent relation:\n%s", v)
+	if !containsStr(v, "└─ #1 [backlog] Epic Alpha (1/2 done)") {
+		t.Errorf("detail view missing the resolved parent as an ancestor row:\n%s", v)
 	}
 	if containsStr(v, "Parent:") {
 		t.Errorf("detail view should replace the old parent metadata field:\n%s", v)
@@ -1296,7 +1302,7 @@ func TestBoard_DetailCanResolveArchivedParent(t *testing.T) {
 	b = sendSpecialKey(b, tea.KeyEnter)
 	v := b.View()
 
-	if !containsStr(v, "↑ Parent  #4 [archived] Archived child") {
+	if !containsStr(v, "└─ #4 [archived] Archived child") {
 		t.Errorf("detail view should resolve an archived parent:\n%s", v)
 	}
 }
@@ -1307,15 +1313,17 @@ func TestBoard_DetailShowsDirectActiveChildrenAndRollup(t *testing.T) {
 	v := b.View()
 
 	for _, want := range []string{
-		"Children (1/2 done)",
-		"├─ #2 [backlog] Backlog child",
+		// Both counted children of #1 stand below it, so its rollup is gone;
+		// the child whose own child is out of the tree keeps its counter.
+		"└─ #1 [backlog] Epic Alpha",
+		"├─ #2 [backlog] Backlog child (0/1 done)",
 		"└─ #3 [done] Done child",
 	} {
 		if !containsStr(v, want) {
 			t.Errorf("detail view missing %q:\n%s", want, v)
 		}
 	}
-	for _, unwanted := range []string{"Archived child", "Grandchild"} {
+	for _, unwanted := range []string{"Archived child", "Grandchild", "Epic Alpha (1/2 done)"} {
 		if containsStr(v, unwanted) {
 			t.Errorf("detail view should not contain %q:\n%s", unwanted, v)
 		}
@@ -2395,7 +2403,7 @@ func TestBoard_ErrorDoesNotHideColumnHeaders(t *testing.T) {
 	}
 
 	// Column headers must still be visible.
-	for _, status := range []string{"backlog", "todo", "in-progress", "review", "done"} {
+	for _, status := range []string{"backlog", "todo", "in-progress", "review", statusDone} {
 		if !containsStr(v, status) {
 			t.Errorf("column header %q is not visible when error is displayed", status)
 		}
@@ -2414,7 +2422,7 @@ func TestBoard_ColumnHeadersAlwaysVisible(t *testing.T) {
 	// Test various heights with a board that has enough tasks to scroll.
 	b, _ := setupTestBoard(t)
 
-	statuses := []string{"backlog", "todo", "in-progress", "review", "done"}
+	statuses := []string{"backlog", "todo", "in-progress", "review", statusDone}
 	// Include small heights (5-7) where card+indicators can exceed budget.
 	for _, height := range []int{5, 6, 7, 8, 10, 15, 20, 30, 40} {
 		b.Update(tea.WindowSizeMsg{Width: 100, Height: height})
@@ -2464,7 +2472,7 @@ func TestBoard_ColumnHeadersVisibleWithManyTasks(t *testing.T) {
 
 	// Create 35 tasks across columns with long titles that wrap to 3 lines.
 	const taskCount = 35
-	statuses := [5]string{"backlog", statusTodo, "in-progress", "review", "done"}
+	statuses := [5]string{"backlog", statusTodo, "in-progress", "review", statusDone}
 	for i := 1; i <= taskCount; i++ {
 		status := statuses[i%len(statuses)]
 		tk := &task.Task{

@@ -15,7 +15,7 @@ func TestE2E_TUIMouseDrag_MovesTaskWithSGRAndX10(t *testing.T) {
 		t.Run(protocol, func(t *testing.T) {
 			kanbanDir := initBoardWithSeededTasks(t)
 			session := startTUIProcessWithOptions(t, kanbanDir, tuiProcessOptions{
-				args: []string{"--mouse"},
+				args: []string{mouseFlag},
 			})
 			session.waitForOutput(tuiMouseStatus)
 
@@ -54,7 +54,7 @@ func TestE2E_TUIMouseDrag_RejectsFullWIPColumn(t *testing.T) {
 	}
 
 	session := startTUIProcessWithOptions(t, kanbanDir, tuiProcessOptions{
-		args: []string{"--mouse"},
+		args: []string{mouseFlag},
 	})
 	session.waitForOutput(tuiMouseStatus)
 	checkpoint := session.checkpoint()
@@ -69,7 +69,7 @@ func TestE2E_TUIMouseDrag_CanCrossSourceBeforeChoosingDestination(t *testing.T) 
 	mustCreateTask(t, kanbanDir, "Change direction", "--status", statusTodo, "--priority", "high")
 
 	session := startTUIProcessWithOptions(t, kanbanDir, tuiProcessOptions{
-		args: []string{"--mouse"},
+		args: []string{mouseFlag},
 	})
 	session.waitForOutput(tuiMouseStatus)
 
@@ -93,7 +93,7 @@ func TestE2E_TUIMouseDrag_AutoClaimedTaskCanMoveBack(t *testing.T) {
 	mustCreateTask(t, kanbanDir, "Round trip", "--priority", "high")
 
 	session := startTUIProcessWithOptions(t, kanbanDir, tuiProcessOptions{
-		args: []string{"--mouse"},
+		args: []string{mouseFlag},
 	})
 	session.waitForOutput(tuiMouseStatus)
 
@@ -129,7 +129,7 @@ func TestE2E_TUIMouseDrag_MovesTaskClaimedByAnotherActor(t *testing.T) {
 	}
 
 	session := startTUIProcessWithOptions(t, kanbanDir, tuiProcessOptions{
-		args: []string{"--mouse"},
+		args: []string{mouseFlag},
 	})
 	session.waitForOutput(tuiMouseStatus)
 	session.dragX10(49, 25)

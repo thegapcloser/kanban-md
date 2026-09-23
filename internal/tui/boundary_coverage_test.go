@@ -227,7 +227,7 @@ func TestBoundary_ExecuteMove_ToTerminalStatus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if tk.Status != "done" {
+	if tk.Status != statusDone {
 		t.Errorf("expected status 'done', got %q", tk.Status)
 	}
 
@@ -627,7 +627,7 @@ func TestBoundary_MoveDialog_CursorBounds(t *testing.T) {
 	}
 
 	// Move cursor down to the last status.
-	names := []string{"backlog", "todo", "in-progress", "review", "done", statusArchived}
+	names := []string{"backlog", "todo", "in-progress", "review", statusDone, statusArchived}
 	for range len(names) - 1 {
 		b = sendKey(b, "j")
 	}

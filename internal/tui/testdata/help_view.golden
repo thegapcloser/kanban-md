@@ -8,6 +8,11 @@
 │  ↓/j           Move cursor down                                             │
 │  ↑/k           Move cursor up                                               │
 │  enter         Show task detail                                             │
+│  tab           Detail view: next relation (shift+tab: previous)             │
+│  enter         Detail view: open the relation under the cursor              │
+│  esc           Detail view: back one task, or close if history is empty     │
+│  backspace     Detail view: back one task, same as esc                      │
+│  q             Detail view: close and forget the relation history           │
 │  c             Create new task in column                                    │
 │  e             Edit selected task (same flow as create)                     │
 │  E             Open selected task in $VISUAL, $EDITOR, or vi                │
@@ -20,6 +25,7 @@
 │  s             Cycle sort field (priority/created/updated/title)            │
 │  S             Reverse sort direction                                       │
 │  /             Search by title, or by ID with #12 (trailing space = exact)  │
+│  v             Cycle hierarchy level filter (all / 0 / 1 / ...)             │
 │  r             Refresh board                                                │
 │  ?             Show this help                                               │
 │  esc/q         Quit                                                         │

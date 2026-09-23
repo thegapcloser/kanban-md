@@ -89,6 +89,28 @@ func TestSnapshot_MouseHelpView(t *testing.T) {
 	assertGolden(t, "mouse_help_view", b.View())
 }
 
+func TestSnapshot_DetailRelationCursor(t *testing.T) {
+	b, _ := setupRelationNavBoard(t)
+	b = sendSpecialKey(b, tea.KeyEnter)
+	b = sendSpecialKey(b, tea.KeyTab)
+	assertGolden(t, "detail_relation_cursor", b.View())
+}
+
+func TestSnapshot_DetailHierarchyTree(t *testing.T) {
+	// Two levels down from the milestone: three indentation levels, the sibling
+	// continuation pipe, and no cut marker on either side. Every row that has
+	// children shows them all, so no row carries a counter.
+	b := setupHierarchyTreeBoard(t, "Milestone One", 2)
+	assertGolden(t, "detail_hierarchy_tree", b.View())
+}
+
+func TestSnapshot_DetailHierarchyAncestors(t *testing.T) {
+	// One level around a story: the ancestor chain, the cut marker above it and
+	// the open ticket at its place in the tree.
+	b := setupHierarchyTreeBoard(t, "Story Four", 1)
+	assertGolden(t, "detail_hierarchy_ancestors", b.View())
+}
+
 func TestSnapshot_MouseDetailBackAffordance(t *testing.T) {
 	b, _ := setupTestBoard(t)
 	b.SetMouseEnabled(true)
@@ -213,7 +235,7 @@ func setupManyTasksBoard(t *testing.T) (*tui.Board, *config.Config) { //nolint:u
 		tk := &task.Task{
 			ID:       i,
 			Title:    fmt.Sprintf("Done task %d", i),
-			Status:   "done",
+			Status:   statusDone,
 			Priority: priorities[i%len(priorities)],
 			Updated:  testRefTime,
 		}
@@ -322,9 +344,9 @@ func setupShowcaseBoard(t *testing.T) (*tui.Board, *config.Config) {
 		{ID: 10, Title: "Implement user auth", Status: "review", Priority: "critical", Tags: []string{"backend"}, ClaimedBy: "sage-river", ClaimedAt: claimedAt, Updated: refNow.Add(-oneDay)},
 		{ID: 11, Title: "Design REST API schema", Status: "review", Priority: "high", Tags: []string{"api"}, ClaimedBy: "neon-drift", ClaimedAt: claimedAt, Updated: refNow.Add(-oneDay)},
 		// Done (3) — 1 week old
-		{ID: 12, Title: "Set up CI pipeline", Status: "done", Priority: "high", Tags: []string{"devops"}, Updated: refNow.Add(-oneWeek)},
-		{ID: 13, Title: "Create project scaffold", Status: "done", Priority: "high", Tags: []string{"setup"}, Updated: refNow.Add(-oneWeek)},
-		{ID: 14, Title: "Define database schema", Status: "done", Priority: "medium", Tags: []string{"backend"}, Updated: refNow.Add(-oneWeek)},
+		{ID: 12, Title: "Set up CI pipeline", Status: statusDone, Priority: "high", Tags: []string{"devops"}, Updated: refNow.Add(-oneWeek)},
+		{ID: 13, Title: "Create project scaffold", Status: statusDone, Priority: "high", Tags: []string{"setup"}, Updated: refNow.Add(-oneWeek)},
+		{ID: 14, Title: "Define database schema", Status: statusDone, Priority: "medium", Tags: []string{"backend"}, Updated: refNow.Add(-oneWeek)},
 	}
 
 	for i := range tasks {

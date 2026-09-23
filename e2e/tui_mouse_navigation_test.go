@@ -11,9 +11,9 @@ import (
 func TestE2E_TUIMouse_DoubleClickDetailBackAndKeyboardSync(t *testing.T) {
 	kanbanDir := initBoardWithSeededTasks(t)
 	session := startTUIProcessWithOptions(t, kanbanDir, tuiProcessOptions{
-		args: []string{"--mouse"},
+		args: []string{mouseFlag},
 	})
-	session.waitForRawOutput("\x1b[?1002h")
+	session.waitForRawOutput("\x1b[?1003h")
 	session.waitForOutput(tuiMouseStatus)
 	session.resize(120, 40)
 
@@ -54,7 +54,7 @@ func TestE2E_TUIMouse_WheelRevealsTaskAndScrollsLongDetail(t *testing.T) {
 		"--body", strings.Join(bodyLines, "\n"))
 
 	session := startTUIProcessWithOptions(t, kanbanDir, tuiProcessOptions{
-		args: []string{"--mouse"},
+		args: []string{mouseFlag},
 		cols: 100,
 		rows: 14,
 	})
@@ -89,5 +89,44 @@ func TestE2E_TUIMouse_WheelRevealsTaskAndScrollsLongDetail(t *testing.T) {
 	session.pressKeys("q")
 	session.waitForOutputSince(checkpoint, tuiMouseStatus)
 	session.pressKeys("q")
+	session.waitForExit()
+}
+
+func TestE2E_TUIMouse_RelationClickOpensChild(t *testing.T) {
+	kanbanDir := initBoard(t)
+	// The parent gets the higher priority so the default sort puts its card
+	// first, which fixes the card the double-click has to hit.
+	mustCreateTask(t, kanbanDir, "Relation parent", "--priority", "critical")
+	mustCreateTask(t, kanbanDir, "Relation child", "--parent", "1")
+
+	session := startTUIProcessWithOptions(t, kanbanDir, tuiProcessOptions{
+		args: []string{mouseFlag},
+	})
+	session.waitForRawOutput("\x1b[?1003h")
+	session.waitForOutput(tuiMouseStatus)
+	session.resize(120, 40)
+
+	// Open the parent with a double-click on its card.
+	checkpoint := session.checkpoint()
+	session.clickSGR(2, 2)
+	session.clickSGR(2, 2)
+	session.waitForOutputSince(checkpoint, "└─ #2")
+
+	// Fixed geometry of a freshly created task: header(0), separator(1),
+	// blank(2), Status(3), Priority(4), Class(5), Created(6), Updated(7),
+	// blank(8), the Hierarchy heading(9), the row of the open task(10), then the
+	// single child row. The number is pinned by TestE2EChildRowGeometryIsPinned
+	// in internal/tui, which reports the new value when the geometry moves.
+	const childRow = 11
+	checkpoint = session.checkpoint()
+	session.mouseSGR(35, 4, childRow, false) // buttonless motion = hover
+	session.clickSGR(4, childRow)
+	session.waitForOutputSince(checkpoint, "Task #2: Relation child")
+
+	checkpoint = session.checkpoint()
+	session.pressKeys("esc")
+	session.waitForOutputSince(checkpoint, "Task #1: Relation parent")
+
+	session.pressKeys("q", "q")
 	session.waitForExit()
 }

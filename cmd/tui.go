@@ -92,7 +92,9 @@ func runTUI(cmd *cobra.Command, _ []string) error {
 
 	programOptions := []tea.ProgramOption{tea.WithAltScreen()}
 	if mouseEnabled {
-		programOptions = append(programOptions, tea.WithMouseCellMotion())
+		// All-motion reporting (1003) is required for hover: cell motion only
+		// reports movement while a button is held.
+		programOptions = append(programOptions, tea.WithMouseAllMotion())
 	}
 	p := tea.NewProgram(model, programOptions...)
 

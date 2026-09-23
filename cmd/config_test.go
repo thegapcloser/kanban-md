@@ -6,7 +6,10 @@ import (
 	"github.com/antopolskiy/kanban-md/internal/config"
 )
 
-const classExpedite = "expedite"
+const (
+	classExpedite      = "expedite"
+	keyHierarchyLevels = "tui.hierarchy_levels"
+)
 
 // --- configAccessors tests ---
 
@@ -39,6 +42,8 @@ func TestAllConfigKeys_ExpectedCoverage(t *testing.T) {
 		"tui.title_lines",
 		"tui.hide_empty_columns",
 		"tui.narrow_threshold",
+		"tui.level_colors",
+		keyHierarchyLevels,
 		"tui.age_thresholds",
 		"next_id",
 	}
@@ -207,6 +212,40 @@ func TestConfigAccessors_SetTUIHideEmptyColumns_Invalid(t *testing.T) {
 	}
 }
 
+func TestConfigAccessors_SetTUILevelColors(t *testing.T) {
+	accessors := configAccessors()
+	cfg := config.NewDefault("Test")
+
+	if cfg.TUI.LevelColors {
+		t.Fatal("tui.level_colors defaults to true, want false so existing boards look unchanged")
+	}
+	if err := accessors["tui.level_colors"].set(cfg, "true"); err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.TUI.LevelColors {
+		t.Error("tui.level_colors = false, want true")
+	}
+	if got := accessors["tui.level_colors"].get(cfg); got != true {
+		t.Errorf("get returned %v, want true", got)
+	}
+
+	if err := accessors["tui.level_colors"].set(cfg, "false"); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.TUI.LevelColors {
+		t.Error("tui.level_colors = true after setting it back to false")
+	}
+}
+
+func TestConfigAccessors_SetTUILevelColors_Invalid(t *testing.T) {
+	accessors := configAccessors()
+	cfg := config.NewDefault("Test")
+
+	if err := accessors["tui.level_colors"].set(cfg, "nope"); err == nil {
+		t.Fatal("expected error for non-boolean level_colors")
+	}
+}
+
 func TestConfigAccessors_SetTUINarrowThreshold(t *testing.T) {
 	accessors := configAccessors()
 	cfg := config.NewDefault("Test")
@@ -260,7 +299,7 @@ func TestConfigAccessors_WritableKeys(t *testing.T) {
 	writableKeys := []string{
 		"board.name", "board.description", "defaults.status", "defaults.priority",
 		"defaults.class", "claim_timeout", "tui.title_lines", "tui.hide_empty_columns",
-		"tui.narrow_threshold",
+		"tui.narrow_threshold", keyHierarchyLevels,
 	}
 
 	for _, key := range writableKeys {
@@ -470,5 +509,33 @@ func TestRunConfigSet_InvalidKey(t *testing.T) {
 	err := runConfigSet(nil, []string{"nonexistent", "value"})
 	if err == nil {
 		t.Fatal("expected error for invalid key")
+	}
+}
+
+func TestConfigAccessors_SetHierarchyLevels(t *testing.T) {
+	accessors := configAccessors()
+	acc := accessors[keyHierarchyLevels]
+	cfg := config.NewDefault(testBoardName)
+
+	if got := acc.get(cfg); got != 1 {
+		t.Errorf("get on an unset field = %v, want the effective default 1", got)
+	}
+	if err := acc.set(cfg, "3"); err != nil {
+		t.Fatalf("set(3) error: %v", err)
+	}
+	if cfg.TUI.HierarchyLevels == nil || *cfg.TUI.HierarchyLevels != 3 {
+		t.Errorf("TUI.HierarchyLevels = %v, want 3", cfg.TUI.HierarchyLevels)
+	}
+	if err := acc.set(cfg, "0"); err != nil {
+		t.Fatalf("set(0) error: %v", err)
+	}
+	if cfg.TUI.HierarchyLevels == nil {
+		t.Fatal("TUI.HierarchyLevels = nil after set(0), want an explicit 0")
+	}
+	if *cfg.TUI.HierarchyLevels != 0 {
+		t.Errorf("TUI.HierarchyLevels = %d, want 0", *cfg.TUI.HierarchyLevels)
+	}
+	if err := acc.set(cfg, "nope"); err == nil {
+		t.Error("set(\"nope\") = nil, want an error")
 	}
 }

@@ -66,6 +66,13 @@ type TUIConfig struct {
 	// NarrowThreshold is the terminal width below which the TUI renders a
 	// single column at a time; 0 = automatic, 1 effectively disables it.
 	NarrowThreshold int `yaml:"narrow_threshold,omitempty"`
+	// LevelColors colors card borders by hierarchy depth and marks the
+	// selected card with a thick border instead of a colored one.
+	LevelColors bool `yaml:"level_colors,omitempty"`
+	// HierarchyLevels is how many levels the detail-view hierarchy tree shows
+	// above and below the open task. A pointer so that "unset" (= the default)
+	// stays distinguishable from an explicit 0, which shows the open task alone.
+	HierarchyLevels *int `yaml:"hierarchy_levels,omitempty"`
 }
 
 // StatusConfig defines a status column and its enforcement rules.
@@ -273,6 +280,9 @@ func (c *Config) validateTUI() error {
 	if c.TUI.NarrowThreshold < 0 {
 		return fmt.Errorf("%w: tui.narrow_threshold must be >= 0", ErrInvalid)
 	}
+	if c.TUI.HierarchyLevels != nil && *c.TUI.HierarchyLevels < 0 {
+		return fmt.Errorf("%w: tui.hierarchy_levels must be >= 0", ErrInvalid)
+	}
 	for i, at := range c.TUI.AgeThresholds {
 		if _, err := time.ParseDuration(at.After); err != nil {
 			return fmt.Errorf("%w: tui.age_thresholds[%d].after %q: %w", ErrInvalid, i, at.After, err)
@@ -339,6 +349,16 @@ func (c *Config) TitleLines() int {
 		return DefaultTitleLines
 	}
 	return c.TUI.TitleLines
+}
+
+// HierarchyLevels returns how many levels the detail-view hierarchy tree shows
+// above and below the open task. Returns DefaultHierarchyLevels if the value is
+// unset; an explicit 0 shows the open task alone.
+func (c *Config) HierarchyLevels() int {
+	if c.TUI.HierarchyLevels == nil {
+		return DefaultHierarchyLevels
+	}
+	return *c.TUI.HierarchyLevels
 }
 
 // ClassByName returns the ClassConfig for the given name, or nil if not found.

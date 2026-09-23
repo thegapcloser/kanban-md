@@ -18,12 +18,15 @@ const (
 	DefaultTitleLines = 2
 	// DefaultHideEmptyColumns controls whether TUI hides empty status columns.
 	DefaultHideEmptyColumns = false
+	// DefaultHierarchyLevels is the number of hierarchy levels the TUI detail
+	// view shows above and below the open task when tui.hierarchy_levels is unset.
+	DefaultHierarchyLevels = 1
 
 	// ConfigFileName is the name of the config file within the kanban directory.
 	ConfigFileName = "config.yml"
 
 	// CurrentVersion is the current config schema version.
-	CurrentVersion = 11
+	CurrentVersion = 13
 
 	// ArchivedStatus is the reserved status name for soft-deleted tasks.
 	ArchivedStatus = "archived"
