@@ -8,7 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/antopolskiy/kanban-md/internal/skill"
+	"github.com/thegapcloser/kanban-md/internal/skill"
 )
 
 const (

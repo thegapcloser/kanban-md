@@ -8,7 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/antopolskiy/kanban-md/internal/task"
+	"github.com/thegapcloser/kanban-md/internal/task"
 )
 
 func TestNarrow_AutoThresholdByColumnCount(t *testing.T) {

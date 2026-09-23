@@ -169,7 +169,7 @@ func TestVersionLdflags(t *testing.T) {
 
 	//nolint:gosec,noctx // building test binary with ldflags
 	build := exec.Command("go", "build",
-		"-ldflags", "-X github.com/antopolskiy/kanban-md/cmd.version="+wantVersion,
+		"-ldflags", "-X github.com/thegapcloser/kanban-md/cmd.version="+wantVersion,
 		"-o", versionBin, "../cmd/kanban-md")
 	build.Stderr = os.Stderr
 	if err := build.Run(); err != nil {

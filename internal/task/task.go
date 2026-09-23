@@ -4,7 +4,7 @@ package task
 import (
 	"time"
 
-	"github.com/antopolskiy/kanban-md/internal/date"
+	"github.com/thegapcloser/kanban-md/internal/date"
 )
 
 // Task represents a kanban task parsed from a markdown file.

@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/antopolskiy/kanban-md/internal/clierr"
-	"github.com/antopolskiy/kanban-md/internal/config"
+	"github.com/thegapcloser/kanban-md/internal/clierr"
+	"github.com/thegapcloser/kanban-md/internal/config"
 )
 
 func TestRunCreate_WithAssigneeAndTags(t *testing.T) {

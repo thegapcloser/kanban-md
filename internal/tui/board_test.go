@@ -11,10 +11,10 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/antopolskiy/kanban-md/internal/config"
-	"github.com/antopolskiy/kanban-md/internal/date"
-	"github.com/antopolskiy/kanban-md/internal/task"
-	"github.com/antopolskiy/kanban-md/internal/tui"
+	"github.com/thegapcloser/kanban-md/internal/config"
+	"github.com/thegapcloser/kanban-md/internal/date"
+	"github.com/thegapcloser/kanban-md/internal/task"
+	"github.com/thegapcloser/kanban-md/internal/tui"
 )
 
 const (

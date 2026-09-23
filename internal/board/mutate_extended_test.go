@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/antopolskiy/kanban-md/internal/clierr"
-	"github.com/antopolskiy/kanban-md/internal/config"
-	"github.com/antopolskiy/kanban-md/internal/task"
+	"github.com/thegapcloser/kanban-md/internal/clierr"
+	"github.com/thegapcloser/kanban-md/internal/config"
+	"github.com/thegapcloser/kanban-md/internal/task"
 )
 
 func setupMutateBoard(t *testing.T) string {

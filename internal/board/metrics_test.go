@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/antopolskiy/kanban-md/internal/config"
-	"github.com/antopolskiy/kanban-md/internal/task"
+	"github.com/thegapcloser/kanban-md/internal/config"
+	"github.com/thegapcloser/kanban-md/internal/task"
 )
 
 func TestMetricsEmpty(t *testing.T) {

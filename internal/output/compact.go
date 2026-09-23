@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/antopolskiy/kanban-md/internal/board"
-	"github.com/antopolskiy/kanban-md/internal/task"
+	"github.com/thegapcloser/kanban-md/internal/board"
+	"github.com/thegapcloser/kanban-md/internal/task"
 )
 
 // TaskCompact renders a list of tasks in one-line-per-record compact format.

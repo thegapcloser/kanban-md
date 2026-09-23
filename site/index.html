@@ -8,7 +8,7 @@
   <meta property="og:title" content="kanban-md — File-based Kanban for AI agents and humans">
   <meta property="og:description" content="A file-based Kanban CLI built for multi-agent workflows. Plain Markdown files, atomic claim operations, token-efficient output.">
   <meta property="og:type" content="website">
-  <meta property="og:image" content="https://raw.githubusercontent.com/antopolskiy/kanban-md/main/assets/demo.gif">
+  <meta property="og:image" content="https://raw.githubusercontent.com/thegapcloser/kanban-md/main/assets/demo.gif">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -19,9 +19,9 @@
 <nav>
   <a href="/" class="nav-logo">kanban-md</a>
   <div class="nav-links">
-    <a href="https://github.com/antopolskiy/kanban-md#commands">Docs</a>
-    <a href="https://github.com/antopolskiy/kanban-md/releases/latest">Releases</a>
-    <a href="https://github.com/antopolskiy/kanban-md" class="nav-github">
+    <a href="https://github.com/thegapcloser/kanban-md#commands">Docs</a>
+    <a href="https://github.com/thegapcloser/kanban-md/releases/latest">Releases</a>
+    <a href="https://github.com/thegapcloser/kanban-md" class="nav-github">
       <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
       GitHub
     </a>
@@ -35,8 +35,8 @@
     <h1>One board.<br>Multiple agents.<br>No conflicts.</h1>
     <p class="hero-sub">A file-based Kanban CLI for <strong>multi-agent workflows</strong>. AI agents coordinate through atomic claims, Markdown task files, and token-efficient output. No database, no server &mdash; just a single binary.</p>
     <div class="hero-install">
-      <div class="hero-cmd" data-copy="brew install antopolskiy/tap/kanban-md">
-        <span class="prompt">$</span> brew install antopolskiy/tap/kanban-md
+      <div class="hero-cmd" data-copy="go install github.com/thegapcloser/kanban-md/cmd/kanban-md@latest">
+        <span class="prompt">$</span> go install github.com/thegapcloser/kanban-md/cmd/kanban-md@latest
         <button class="copy-btn" onclick="copyCmd(this)" aria-label="Copy to clipboard">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
         </button>
@@ -51,7 +51,7 @@
         <span class="demo-dot"></span>
         <span class="demo-dot"></span>
       </div>
-      <img src="https://raw.githubusercontent.com/antopolskiy/kanban-md/main/assets/demo.gif" alt="kanban-md terminal UI showing a board with tasks across columns" loading="lazy">
+      <img src="https://raw.githubusercontent.com/thegapcloser/kanban-md/main/assets/demo.gif" alt="kanban-md terminal UI showing a board with tasks across columns" loading="lazy">
     </div>
   </section>
 
@@ -78,11 +78,11 @@
         <span class="demo-dot"></span>
         <span class="demo-dot"></span>
       </div>
-      <img src="https://raw.githubusercontent.com/antopolskiy/kanban-md/main/assets/tui-screenshot.png" alt="kanban-md tui interactive terminal board showing tasks across status columns with agent claims and age colors" loading="lazy">
+      <img src="https://raw.githubusercontent.com/thegapcloser/kanban-md/main/assets/tui-screenshot.png" alt="kanban-md tui interactive terminal board showing tasks across status columns with agent claims and age colors" loading="lazy">
     </div>
     <div class="tui-install">
-      <div class="install-cmd" data-copy="brew install antopolskiy/tap/kanban-md">
-        <pre><code><span class="prompt">$</span> brew install antopolskiy/tap/kanban-md</code></pre>
+      <div class="install-cmd" data-copy="go install github.com/thegapcloser/kanban-md/cmd/kanban-md@latest">
+        <pre><code><span class="prompt">$</span> go install github.com/thegapcloser/kanban-md/cmd/kanban-md@latest</code></pre>
         <button class="copy-btn" onclick="copyCmd(this)" aria-label="Copy to clipboard">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
         </button>
@@ -167,18 +167,9 @@
     <h2>Install</h2>
     <div class="install-stack">
       <div class="install-row">
-        <span class="install-label">Homebrew</span>
-        <div class="install-cmd" data-copy="brew install antopolskiy/tap/kanban-md">
-          <pre><code>brew install antopolskiy/tap/kanban-md</code></pre>
-          <button class="copy-btn" onclick="copyCmd(this)" aria-label="Copy to clipboard">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-          </button>
-        </div>
-      </div>
-      <div class="install-row">
         <span class="install-label">Go</span>
-        <div class="install-cmd" data-copy="go install github.com/antopolskiy/kanban-md/cmd/kanban-md@latest">
-          <pre><code>go install github.com/antopolskiy/kanban-md/cmd/kanban-md@latest</code></pre>
+        <div class="install-cmd" data-copy="go install github.com/thegapcloser/kanban-md/cmd/kanban-md@latest">
+          <pre><code>go install github.com/thegapcloser/kanban-md/cmd/kanban-md@latest</code></pre>
           <button class="copy-btn" onclick="copyCmd(this)" aria-label="Copy to clipboard">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
           </button>
@@ -187,7 +178,7 @@
       <div class="install-row">
         <span class="install-label">Binary</span>
         <div class="install-cmd">
-          <p>Download from <a href="https://github.com/antopolskiy/kanban-md/releases/latest">GitHub Releases</a></p>
+          <p>Download from <a href="https://github.com/thegapcloser/kanban-md/releases/latest">GitHub Releases</a></p>
         </div>
       </div>
     </div>
@@ -197,9 +188,9 @@
 
 <footer>
   <div class="footer-links">
-    <a href="https://github.com/antopolskiy/kanban-md">GitHub</a>
-    <a href="https://github.com/antopolskiy/kanban-md/releases/latest">Releases</a>
-    <a href="https://github.com/antopolskiy/kanban-md#commands">Docs</a>
+    <a href="https://github.com/thegapcloser/kanban-md">GitHub</a>
+    <a href="https://github.com/thegapcloser/kanban-md/releases/latest">Releases</a>
+    <a href="https://github.com/thegapcloser/kanban-md#commands">Docs</a>
   </div>
   <p class="footer-license">MIT License &middot; Built with Go</p>
 </footer>

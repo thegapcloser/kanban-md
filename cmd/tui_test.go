@@ -10,9 +10,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/antopolskiy/kanban-md/internal/clierr"
-	"github.com/antopolskiy/kanban-md/internal/config"
-	"github.com/antopolskiy/kanban-md/internal/tui"
+	"github.com/thegapcloser/kanban-md/internal/clierr"
+	"github.com/thegapcloser/kanban-md/internal/config"
+	"github.com/thegapcloser/kanban-md/internal/tui"
 )
 
 // --- isBoardNotFound tests ---

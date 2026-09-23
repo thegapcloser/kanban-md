@@ -3,7 +3,7 @@ package task
 import (
 	"time"
 
-	"github.com/antopolskiy/kanban-md/internal/config"
+	"github.com/thegapcloser/kanban-md/internal/config"
 )
 
 // UpdateTimestamps sets Started and Completed based on the status transition.

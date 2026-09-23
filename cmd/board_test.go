@@ -8,9 +8,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/antopolskiy/kanban-md/internal/clierr"
-	"github.com/antopolskiy/kanban-md/internal/output"
-	"github.com/antopolskiy/kanban-md/internal/task"
+	"github.com/thegapcloser/kanban-md/internal/clierr"
+	"github.com/thegapcloser/kanban-md/internal/output"
+	"github.com/thegapcloser/kanban-md/internal/task"
 )
 
 // newBoardCmd creates a fresh cobra command with board flags for testing.

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/antopolskiy/kanban-md/internal/config"
+	"github.com/thegapcloser/kanban-md/internal/config"
 )
 
 func TestE2E_TUIMouseDrag_MovesTaskWithSGRAndX10(t *testing.T) {

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/antopolskiy/kanban-md/internal/watcher"
+	"github.com/thegapcloser/kanban-md/internal/watcher"
 )
 
 func TestWatcher_DetectsFileCreate(t *testing.T) {

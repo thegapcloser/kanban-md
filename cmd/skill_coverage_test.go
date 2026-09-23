@@ -10,7 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 
-	"github.com/antopolskiy/kanban-md/internal/skill"
+	"github.com/thegapcloser/kanban-md/internal/skill"
 )
 
 const skillNameKanbanMD = "kanban-md"

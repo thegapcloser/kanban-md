@@ -7,7 +7,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/antopolskiy/kanban-md/internal/config"
+	"github.com/thegapcloser/kanban-md/internal/config"
 )
 
 // ConsistencyReport summarizes consistency warnings and repairs.

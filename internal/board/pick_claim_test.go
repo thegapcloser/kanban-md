@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/antopolskiy/kanban-md/internal/board"
-	"github.com/antopolskiy/kanban-md/internal/clierr"
-	"github.com/antopolskiy/kanban-md/internal/task"
+	"github.com/thegapcloser/kanban-md/internal/board"
+	"github.com/thegapcloser/kanban-md/internal/clierr"
+	"github.com/thegapcloser/kanban-md/internal/task"
 )
 
 func TestPickAndClaim_Success(t *testing.T) {

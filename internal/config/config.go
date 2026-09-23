@@ -9,7 +9,7 @@ import (
 
 	"go.yaml.in/yaml/v3"
 
-	"github.com/antopolskiy/kanban-md/internal/clierr"
+	"github.com/thegapcloser/kanban-md/internal/clierr"
 )
 
 const fileMode = 0o600

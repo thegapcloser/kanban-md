@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/antopolskiy/kanban-md/internal/clierr"
+	"github.com/thegapcloser/kanban-md/internal/clierr"
 )
 
 // idPrefixRe matches the numeric ID prefix of a task filename.

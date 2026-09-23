@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/antopolskiy/kanban-md/internal/clierr"
+	"github.com/thegapcloser/kanban-md/internal/clierr"
 )
 
 // ValidateStatus checks that a status is in the allowed list.

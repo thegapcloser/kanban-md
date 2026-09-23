@@ -10,9 +10,9 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/antopolskiy/kanban-md/internal/board"
-	"github.com/antopolskiy/kanban-md/internal/config"
-	"github.com/antopolskiy/kanban-md/internal/task"
+	"github.com/thegapcloser/kanban-md/internal/board"
+	"github.com/thegapcloser/kanban-md/internal/config"
+	"github.com/thegapcloser/kanban-md/internal/task"
 )
 
 var dragMoveTime = time.Date(2026, 7, 16, 15, 0, 0, 0, time.UTC) //nolint:gochecknoglobals // fixed mutation clock

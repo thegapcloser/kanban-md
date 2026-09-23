@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/antopolskiy/kanban-md/internal/board"
-	"github.com/antopolskiy/kanban-md/internal/config"
-	"github.com/antopolskiy/kanban-md/internal/task"
+	"github.com/thegapcloser/kanban-md/internal/board"
+	"github.com/thegapcloser/kanban-md/internal/config"
+	"github.com/thegapcloser/kanban-md/internal/task"
 )
 
 func cyclePtr(i int) *int { return &i }

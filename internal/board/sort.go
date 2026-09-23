@@ -4,8 +4,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/antopolskiy/kanban-md/internal/config"
-	"github.com/antopolskiy/kanban-md/internal/task"
+	"github.com/thegapcloser/kanban-md/internal/config"
+	"github.com/thegapcloser/kanban-md/internal/task"
 )
 
 // Sort sorts tasks by the given field. For status and priority,

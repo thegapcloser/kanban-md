@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/antopolskiy/kanban-md/internal/filelock"
+	"github.com/thegapcloser/kanban-md/internal/filelock"
 )
 
 func TestLock_InvalidPath(t *testing.T) {

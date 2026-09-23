@@ -8,9 +8,9 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
 
-	"github.com/antopolskiy/kanban-md/internal/board"
-	"github.com/antopolskiy/kanban-md/internal/date"
-	"github.com/antopolskiy/kanban-md/internal/task"
+	"github.com/thegapcloser/kanban-md/internal/board"
+	"github.com/thegapcloser/kanban-md/internal/date"
+	"github.com/thegapcloser/kanban-md/internal/task"
 )
 
 // disableColorForTest calls DisableColor and registers a cleanup that

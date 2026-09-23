@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/antopolskiy/kanban-md/internal/config"
+	"github.com/thegapcloser/kanban-md/internal/config"
 )
 
 // ---------------------------------------------------------------------------

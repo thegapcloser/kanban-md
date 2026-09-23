@@ -98,7 +98,7 @@ Explain what changed and what users need to know. Include migration notes if app
 
 Any steps users need to take, or "No action needed" with explanation of auto-migration.
 
-**Full diff:** [`vPREVIOUS...vNEW`](https://github.com/antopolskiy/kanban-md/compare/vPREVIOUS...vNEW)
+**Full diff:** [`vPREVIOUS...vNEW`](https://github.com/thegapcloser/kanban-md/compare/vPREVIOUS...vNEW)
 ```
 
 **Guidelines:**

@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/antopolskiy/kanban-md/internal/agentname"
+	"github.com/thegapcloser/kanban-md/internal/agentname"
 )
 
 var agentNameCmd = &cobra.Command{

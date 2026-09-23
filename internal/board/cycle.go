@@ -1,6 +1,6 @@
 package board
 
-import "github.com/antopolskiy/kanban-md/internal/task"
+import "github.com/thegapcloser/kanban-md/internal/task"
 
 // ParentCyclePath reports whether making parentID the parent of taskID would
 // close a ring in the parent tree.

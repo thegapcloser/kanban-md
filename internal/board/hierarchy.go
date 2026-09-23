@@ -3,8 +3,8 @@ package board
 import (
 	"sort"
 
-	"github.com/antopolskiy/kanban-md/internal/config"
-	"github.com/antopolskiy/kanban-md/internal/task"
+	"github.com/thegapcloser/kanban-md/internal/config"
+	"github.com/thegapcloser/kanban-md/internal/task"
 )
 
 // HierarchyIndex answers parent, child and depth questions about a task set in

@@ -1,9 +1,7 @@
 name: Deploy to GitHub Pages
 
+# Manual only: GitHub Pages is not enabled for this repository yet.
 on:
-  push:
-    branches: [main]
-    paths: [site/**]
   workflow_dispatch:
 
 permissions:

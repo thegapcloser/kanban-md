@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/antopolskiy/kanban-md/internal/watcher"
+	"github.com/thegapcloser/kanban-md/internal/watcher"
 )
 
 // TestWatcher_CancelWithPendingDebounce verifies context cancel with a
