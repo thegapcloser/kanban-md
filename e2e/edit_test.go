@@ -223,6 +223,60 @@ func TestEditBodyAndAppendBodyConflict(t *testing.T) {
 	}
 }
 
+func TestEditBodyExactReplacements(t *testing.T) {
+	kanbanDir := initBoard(t)
+	mustCreateTask(t, kanbanDir, "Replacement target", "--body", "Blockiert durch: design\n\n- [BLOCKED] Mock fehlt")
+
+	var edited taskJSON
+	r := runKanbanJSON(t, kanbanDir, &edited,
+		"edit", "1",
+		"--body-replace", "Blockiert durch: design",
+		"--body-with", "Blockiert durch: keins",
+		"--body-replace", "- [BLOCKED] Mock fehlt",
+		"--body-with", "- [RESOLVED] Mock bestätigt",
+	)
+	if r.exitCode != 0 {
+		t.Fatalf("edit failed: %s", r.stderr)
+	}
+	want := "Blockiert durch: keins\n\n- [RESOLVED] Mock bestätigt"
+	if strings.TrimSuffix(edited.Body, "\n") != want {
+		t.Errorf("Body = %q, want %q", edited.Body, want)
+	}
+}
+
+func TestEditBodyExactReplacementRejectsAmbiguousTextWithoutWriting(t *testing.T) {
+	kanbanDir := initBoard(t)
+	mustCreateTask(t, kanbanDir, "Ambiguous replacement", "--body", "same and same")
+
+	errResp := runKanbanJSONError(t, kanbanDir,
+		"edit", "1", "--body-replace", "same", "--body-with", "changed",
+	)
+	if errResp.Code != "INVALID_INPUT" {
+		t.Errorf("code = %q, want INVALID_INPUT", errResp.Code)
+	}
+
+	var unchanged taskJSON
+	r := runKanbanJSON(t, kanbanDir, &unchanged, "show", "1")
+	if r.exitCode != 0 {
+		t.Fatalf("show failed: %s", r.stderr)
+	}
+	if strings.TrimSpace(unchanged.Body) != "same and same" {
+		t.Errorf("Body = %q, want unchanged body", unchanged.Body)
+	}
+}
+
+func TestEditBodyExactReplacementConflictsWithFullBodyEdit(t *testing.T) {
+	kanbanDir := initBoard(t)
+	mustCreateTask(t, kanbanDir, "Replacement conflict", "--body", "old")
+
+	errResp := runKanbanJSONError(t, kanbanDir,
+		"edit", "1", "--body", "whole", "--body-replace", "old", "--body-with", "new",
+	)
+	if errResp.Code != codeStatusConflict {
+		t.Errorf("code = %q, want STATUS_CONFLICT", errResp.Code)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Move tests
 // ---------------------------------------------------------------------------
