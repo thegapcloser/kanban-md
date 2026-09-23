@@ -596,7 +596,7 @@ func (e *exitCodeError) Error() string {
 // CheckSkillStaleness checks installed skills and prints a warning if outdated.
 // Called from PersistentPreRun for every command. Must be fast.
 func CheckSkillStaleness(projectRoot string) {
-	if version == "dev" {
+	if version == devVersion {
 		return
 	}
 

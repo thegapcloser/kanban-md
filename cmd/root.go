@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"runtime/debug"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -15,8 +17,26 @@ import (
 	"github.com/thegapcloser/kanban-md/internal/task"
 )
 
-// version is set at build time via ldflags.
+// version is set at build time via ldflags. Builds without ldflags, such as
+// go install, resolve it from the module build info in init.
 var version = "dev"
+
+// devVersion is the placeholder version of a build without ldflags.
+const devVersion = "dev"
+
+// resolveVersion keeps a version set via ldflags. For the dev placeholder it
+// returns the module version from the build info, without the leading "v"
+// that release builds drop as well. A build with uncommitted changes stays dev.
+func resolveVersion(v string, info *debug.BuildInfo, ok bool) string {
+	if v != devVersion || !ok || info == nil {
+		return v
+	}
+	mv := info.Main.Version
+	if mv == "" || mv == "(devel)" || strings.HasSuffix(mv, "+dirty") {
+		return v
+	}
+	return strings.TrimPrefix(mv, "v")
+}
 
 // Global flags.
 var (
@@ -50,6 +70,10 @@ easy to read, edit, and version-control. Designed for AI agents and humans alike
 }
 
 func init() {
+	info, ok := debug.ReadBuildInfo()
+	version = resolveVersion(version, info, ok)
+	rootCmd.Version = version
+
 	rootCmd.PersistentFlags().BoolVar(&flagJSON, "json", false, "output as JSON")
 	rootCmd.PersistentFlags().BoolVar(&flagTable, "table", false, "output as table")
 	rootCmd.PersistentFlags().BoolVar(&flagCompact, "compact", false, "compact one-line-per-record output")
