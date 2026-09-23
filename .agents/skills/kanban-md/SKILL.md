@@ -35,6 +35,8 @@ command to run and how to call it safely; it never decides what the work is.
 - **Escalation:** a CLI error names its cause. Read it, then read
   `kanban-md <command> --help` for the exact flag contract. Without a board,
   run `kanban-md init --name NAME` only when the user asks for a new board.
+  Without a terminal, `init` adds the board directory to `.gitignore`; remove
+  that entry when the board belongs in version control.
 
 ## Steps
 

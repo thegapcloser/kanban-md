@@ -17,8 +17,12 @@ import (
 var initCmd = &cobra.Command{
 	Use:   "init",
 	Short: "Initialize a new kanban board",
-	Long:  `Creates a kanban directory with config.yml and tasks/ subdirectory.`,
-	RunE:  runInit,
+	Long: `Creates a kanban directory with config.yml and tasks/ subdirectory.
+
+Afterwards init asks whether to add the board directory to .gitignore.
+An empty answer or a closed stdin, as in scripts and agent sessions, counts
+as yes. Remove the entry again if the board belongs in version control.`,
+	RunE: runInit,
 }
 
 func init() {
