@@ -25,14 +25,20 @@ var version = "dev"
 const devVersion = "dev"
 
 // resolveVersion keeps a version set via ldflags. For the dev placeholder it
-// returns the module version from the build info, without the leading "v"
-// that release builds drop as well. A build with uncommitted changes stays dev.
+// returns the module version of a build from the module cache, such as
+// go install ...@v1.2.3, without the leading "v" that release builds drop as
+// well. A build inside a source checkout carries vcs settings and stays dev.
 func resolveVersion(v string, info *debug.BuildInfo, ok bool) string {
 	if v != devVersion || !ok || info == nil {
 		return v
 	}
+	for _, s := range info.Settings {
+		if strings.HasPrefix(s.Key, "vcs") {
+			return v
+		}
+	}
 	mv := info.Main.Version
-	if mv == "" || mv == "(devel)" || strings.HasSuffix(mv, "+dirty") {
+	if mv == "" || mv == "(devel)" {
 		return v
 	}
 	return strings.TrimPrefix(mv, "v")

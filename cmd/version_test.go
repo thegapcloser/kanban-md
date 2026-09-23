@@ -18,9 +18,12 @@ func TestResolveVersion(t *testing.T) {
 	}{
 		{"ldflags version wins", "0.39.0", withMain("v0.40.0"), true, "0.39.0"},
 		{"go install module version", "dev", withMain("v0.39.1"), true, "0.39.1"},
-		{"pseudo version", "dev", withMain("v0.39.1-0.20260923120000-abcdef123456"), true, "0.39.1-0.20260923120000-abcdef123456"},
+		{"go install at a commit", "dev", withMain("v0.39.1-0.20260923120000-abcdef123456"), true, "0.39.1-0.20260923120000-abcdef123456"},
 		{"local build keeps dev", "dev", withMain("(devel)"), true, "dev"},
-		{"dirty build keeps dev", "dev", withMain("v0.39.0+dirty"), true, "dev"},
+		{"checkout build keeps dev", "dev", &debug.BuildInfo{
+			Main:     debug.Module{Version: "v0.0.0-20260923194038-09893f3174f9"},
+			Settings: []debug.BuildSetting{{Key: "vcs.revision", Value: "09893f3174f9"}},
+		}, true, "dev"},
 		{"empty module version keeps dev", "dev", withMain(""), true, "dev"},
 		{"no build info keeps dev", "dev", nil, false, "dev"},
 	}
