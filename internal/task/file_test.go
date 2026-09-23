@@ -288,3 +288,80 @@ updated: 2026-02-24T12:00:00Z
 		t.Fatalf("error = %v, want missing required field message", err)
 	}
 }
+
+func TestWriteAndReadChildRank(t *testing.T) {
+	dir := t.TempDir()
+	parent, rank := 7, 20
+	base := &Task{
+		ID:       1,
+		Title:    "Ranked child",
+		Status:   "todo",
+		Priority: "medium",
+		Created:  time.Date(2026, 2, 7, 10, 0, 0, 0, time.UTC),
+		Updated:  time.Date(2026, 2, 7, 10, 0, 0, 0, time.UTC),
+		Parent:   &parent,
+	}
+
+	withRank := *base
+	withRank.ChildRank = &rank
+	rankedPath := filepath.Join(dir, "001-ranked-child.md")
+	if err := Write(rankedPath, &withRank); err != nil {
+		t.Fatalf("Write() with child rank: %v", err)
+	}
+
+	data, err := os.ReadFile(rankedPath) //nolint:gosec // test file path
+	if err != nil {
+		t.Fatalf("ReadFile error: %v", err)
+	}
+	if !strings.Contains(string(data), "child_rank: 20") {
+		t.Errorf("frontmatter missing child_rank, got:\n%s", data)
+	}
+
+	loaded, err := Read(rankedPath)
+	if err != nil {
+		t.Fatalf("Read() with child rank: %v", err)
+	}
+	if loaded.ChildRank == nil || *loaded.ChildRank != rank {
+		t.Fatalf("ChildRank = %v, want %d", loaded.ChildRank, rank)
+	}
+
+	// Without a rank the key must stay out of the frontmatter entirely.
+	plainPath := filepath.Join(dir, "002-plain-child.md")
+	if writeErr := Write(plainPath, base); writeErr != nil {
+		t.Fatalf("Write() without child rank: %v", writeErr)
+	}
+	plainData, err := os.ReadFile(plainPath) //nolint:gosec // test file path
+	if err != nil {
+		t.Fatalf("ReadFile error: %v", err)
+	}
+	if strings.Contains(string(plainData), "child_rank") {
+		t.Errorf("frontmatter should omit child_rank, got:\n%s", plainData)
+	}
+	plain, err := Read(plainPath)
+	if err != nil {
+		t.Fatalf("Read() without child rank: %v", err)
+	}
+	if plain.ChildRank != nil {
+		t.Errorf("ChildRank = %v, want nil", plain.ChildRank)
+	}
+}
+
+func TestValidateChildRank(t *testing.T) {
+	parent, rank, zero, negative := 7, 20, 0, -3
+
+	if err := ValidateChildRank(&Task{ID: 1}); err != nil {
+		t.Errorf("no rank: got error %v, want nil", err)
+	}
+	if err := ValidateChildRank(&Task{ID: 1, Parent: &parent, ChildRank: &rank}); err != nil {
+		t.Errorf("valid rank: got error %v, want nil", err)
+	}
+	if err := ValidateChildRank(&Task{ID: 1, ChildRank: &rank}); err == nil {
+		t.Error("rank without parent: got nil, want error")
+	}
+	if err := ValidateChildRank(&Task{ID: 1, Parent: &parent, ChildRank: &zero}); err == nil {
+		t.Error("rank 0: got nil, want error")
+	}
+	if err := ValidateChildRank(&Task{ID: 1, Parent: &parent, ChildRank: &negative}); err == nil {
+		t.Error("negative rank: got nil, want error")
+	}
+}

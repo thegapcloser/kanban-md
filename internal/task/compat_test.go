@@ -258,3 +258,37 @@ func TestCompatV1TaskWithoutClaimAndClass(t *testing.T) {
 		t.Errorf("Class = %q, want empty", tk.Class)
 	}
 }
+
+func TestCompatV1TaskWithChildRank(t *testing.T) {
+	path := filepath.Join(v1FixtureDir, "007-with-child-rank.md")
+	tk, err := Read(path)
+	if err != nil {
+		t.Fatalf("Read() v1 task with child rank: %v", err)
+	}
+
+	if tk.ID != 7 {
+		t.Errorf("ID = %d, want 7", tk.ID)
+	}
+	if tk.Parent == nil || *tk.Parent != 2 {
+		t.Fatalf("Parent = %v, want 2", tk.Parent)
+	}
+	if tk.ChildRank == nil {
+		t.Fatal("ChildRank is nil, want 20")
+	}
+	if *tk.ChildRank != 20 {
+		t.Errorf("ChildRank = %d, want 20", *tk.ChildRank)
+	}
+}
+
+func TestCompatV1TaskWithoutChildRank(t *testing.T) {
+	path := filepath.Join(v1FixtureDir, "002-design-api.md")
+	tk, err := Read(path)
+	if err != nil {
+		t.Fatalf("Read() v1 task: %v", err)
+	}
+
+	// Tasks predating child_rank must keep parsing with a nil rank.
+	if tk.ChildRank != nil {
+		t.Errorf("ChildRank = %v, want nil", tk.ChildRank)
+	}
+}

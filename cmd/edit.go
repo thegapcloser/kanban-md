@@ -44,7 +44,9 @@ func init() {
 	editCmd.Flags().String("completed", "", "set completed date (YYYY-MM-DD)")
 	editCmd.Flags().Bool("clear-completed", false, "clear completed timestamp")
 	editCmd.Flags().Int("parent", 0, "set parent task ID")
-	editCmd.Flags().Bool("clear-parent", false, "clear parent")
+	editCmd.Flags().Bool("clear-parent", false, "clear parent (also clears child rank)")
+	editCmd.Flags().Int("child-rank", 0, "set order among siblings (lower first)")
+	editCmd.Flags().Bool("clear-child-rank", false, "clear child rank")
 	editCmd.Flags().IntSlice("add-dep", nil, "add dependency task IDs")
 	editCmd.Flags().IntSlice("remove-dep", nil, "remove dependency task IDs")
 	editCmd.Flags().String("block", "", "mark task as blocked with reason")
@@ -359,17 +361,36 @@ func applyDepFlags(cmd *cobra.Command, t *task.Task) (bool, error) {
 
 	parentSet := cmd.Flags().Changed("parent")
 	clearParent, _ := cmd.Flags().GetBool("clear-parent")
+	rankSet := cmd.Flags().Changed("child-rank")
+	clearRank, _ := cmd.Flags().GetBool("clear-child-rank")
 
 	if parentSet && clearParent {
 		return false, clierr.New(clierr.StatusConflict, "cannot use --parent and --clear-parent together")
+	}
+	if rankSet && clearRank {
+		return false, clierr.New(clierr.StatusConflict, "cannot use --child-rank and --clear-child-rank together")
+	}
+	if clearParent && rankSet {
+		return false, clierr.New(clierr.StatusConflict, "cannot use --child-rank and --clear-parent together")
 	}
 	if parentSet {
 		v, _ := cmd.Flags().GetInt("parent")
 		t.Parent = &v
 		changed = true
 	}
+	// Clearing the parent drops the sibling group, so the rank goes with it.
 	if clearParent {
 		t.Parent = nil
+		t.ChildRank = nil
+		changed = true
+	}
+	if rankSet {
+		v, _ := cmd.Flags().GetInt("child-rank")
+		t.ChildRank = &v
+		changed = true
+	}
+	if clearRank {
+		t.ChildRank = nil
 		changed = true
 	}
 

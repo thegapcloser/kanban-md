@@ -236,6 +236,7 @@ type CreateParams struct {
 	Due       *date.Date
 	Estimate  string
 	Parent    *int
+	ChildRank *int // orders the task among its siblings; requires Parent
 	DependsOn []int
 	Claimant  string // if non-empty, sets claim on the task
 }
@@ -334,12 +335,7 @@ func applyCreateParams(cfg *config.Config, t *task.Task, p CreateParams, now tim
 	if p.Estimate != "" {
 		t.Estimate = p.Estimate
 	}
-	if p.Parent != nil {
-		t.Parent = p.Parent
-	}
-	if len(p.DependsOn) > 0 {
-		t.DependsOn = p.DependsOn
-	}
+	applyCreateRelations(t, p)
 	if p.Claimant != "" {
 		t.ClaimedBy = p.Claimant
 		t.ClaimedAt = &now
@@ -347,10 +343,27 @@ func applyCreateParams(cfg *config.Config, t *task.Task, p CreateParams, now tim
 	return nil
 }
 
-// validateDeps validates parent and dependency references for a task: every
-// referenced task must exist, and neither the parent tree nor the depends_on
-// graph may end up with a cycle.
+// applyCreateRelations applies the parent, child-rank and dependency params.
+// References are checked later by validateDeps, once the task exists in full.
+func applyCreateRelations(t *task.Task, p CreateParams) {
+	if p.Parent != nil {
+		t.Parent = p.Parent
+	}
+	if p.ChildRank != nil {
+		t.ChildRank = p.ChildRank
+	}
+	if len(p.DependsOn) > 0 {
+		t.DependsOn = p.DependsOn
+	}
+}
+
+// validateDeps validates parent, child rank and dependency references for a task:
+// every referenced task must exist, and neither the parent tree nor the
+// depends_on graph may end up with a cycle.
 func validateDeps(cfg *config.Config, t *task.Task) error {
+	if err := task.ValidateChildRank(t); err != nil {
+		return err
+	}
 	if t.Parent != nil {
 		if err := task.ValidateDependencyIDs(cfg.TasksPath(), t.ID, []int{*t.Parent}); err != nil {
 			return fmt.Errorf("invalid parent: %w", err)

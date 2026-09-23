@@ -21,6 +21,7 @@ Returned by: `show --json` (also by other commands when `--json` is passed).
   "due": "2026-03-01",
   "estimate": "4h",
   "parent": 5,
+  "child_rank": 20,
   "depends_on": [3, 4],
   "blocked": true,
   "block_reason": "Waiting on API keys",
@@ -30,7 +31,7 @@ Returned by: `show --json` (also by other commands when `--json` is passed).
 ```
 
 Fields with `omitempty` (absent when zero/null): started, completed,
-assignee, tags, due, estimate, parent, depends_on, blocked, block_reason,
+assignee, tags, due, estimate, parent, child_rank, depends_on, blocked, block_reason,
 body, file.
 
 ## Error Response
